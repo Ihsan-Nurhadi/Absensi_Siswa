@@ -5,7 +5,7 @@ import SkeuoCard from '../../components/common/SkeuoCard';
 import PressButton from '../../components/common/PressButton';
 import SimulatorModal from '../../components/common/SimulatorModal';
 import StickyNote from '../../components/common/StickyNote';
-import { Calendar, Users, Zap, FileSpreadsheet, Plus, MessageSquare, Clock, Settings } from 'lucide-react';
+import { Calendar, Users, Zap, FileSpreadsheet, Plus, MessageSquare, Clock, Settings, UserX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const TeacherDashboard = () => {
@@ -17,7 +17,12 @@ export const TeacherDashboard = () => {
   // Class Schedule State & Modal
   const [classInfo, setClassInfo] = useState(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [scheduleForm, setScheduleForm] = useState({ jam_masuk: '07:15', jam_pulang: '15:00' });
+  const [scheduleForm, setScheduleForm] = useState({ 
+    jam_masuk: '07:15', 
+    toleransi_terlambat_menit: 15, 
+    batas_akhir_masuk: '09:30', 
+    jam_pulang: '15:00' 
+  });
 
   // Feedback modal
   const [feedbackStudent, setFeedbackStudent] = useState(null);
@@ -51,8 +56,10 @@ export const TeacherDashboard = () => {
       if (clsData) {
         setClassInfo(clsData);
         setScheduleForm({
-          jam_masuk: clsData.jam_masuk || '07:15',
-          jam_pulang: clsData.jam_pulang || '15:00'
+          jam_masuk: clsData.jam_masuk ? clsData.jam_masuk.slice(0, 5) : '07:15',
+          toleransi_terlambat_menit: clsData.toleransi_terlambat_menit ?? 15,
+          batas_akhir_masuk: clsData.batas_akhir_masuk ? clsData.batas_akhir_masuk.slice(0, 5) : '09:30',
+          jam_pulang: clsData.jam_pulang ? clsData.jam_pulang.slice(0, 5) : '15:00'
         });
       }
 
@@ -71,7 +78,7 @@ export const TeacherDashboard = () => {
     if (!user.kelas_id) return;
     try {
       await teacherAPI.updateClassSchedule(user.kelas_id, scheduleForm);
-      alert(`Jadwal jam masuk (${scheduleForm.jam_masuk}) dan jam keluar (${scheduleForm.jam_pulang}) berhasil disimpan!`);
+      alert(`Jadwal presensi berhasil disimpan! Masuk: ${scheduleForm.jam_masuk} (toleransi +${scheduleForm.toleransi_terlambat_menit}m), Batas Masuk: ${scheduleForm.batas_akhir_masuk}, Pulang: ${scheduleForm.jam_pulang}`);
       setShowScheduleModal(false);
       loadDashboardData();
     } catch (err) {
@@ -89,6 +96,17 @@ export const TeacherDashboard = () => {
       await loadDashboardData();
     } catch (err) {
       alert("Gagal memperbarui status absensi.");
+    }
+  };
+
+  const handleAutoMarkAlfa = async () => {
+    if (!window.confirm(`Tandai ${todaySummary?.belum_absen || ''} siswa yang belum melakukan presensi hari ini sebagai ALPA?`)) return;
+    try {
+      const res = await teacherAPI.autoMarkAlfa({ force: true });
+      alert(res.message || "Siswa yang belum absen berhasil ditandai sebagai ALPA.");
+      await loadDashboardData();
+    } catch (err) {
+      alert("Gagal memproses Auto-Alfa.");
     }
   };
 
@@ -160,7 +178,7 @@ export const TeacherDashboard = () => {
             Absensi Hari Ini — {user.kelas_nama || 'Kelas Anda'}
           </h1>
           <p style={{ fontSize: '0.82rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span>Jadwal: Masuk <strong>{classInfo?.jam_masuk || '07:15'} WIB</strong> • Keluar <strong>{classInfo?.jam_pulang || '15:00'} WIB</strong></span>
+            <span>Jadwal: Masuk <strong>{classInfo?.jam_masuk || '07:15'} WIB</strong> (+{classInfo?.toleransi_terlambat_menit ?? 15}m toleransi) • Batas Masuk <strong>{classInfo?.batas_akhir_masuk || '09:30'} WIB</strong> • Keluar <strong>{classInfo?.jam_pulang || '15:00'} WIB</strong></span>
           </p>
         </div>
 
@@ -183,6 +201,27 @@ export const TeacherDashboard = () => {
           >
             <Clock size={15} color="#d97706" /> Atur Jam Masuk & Keluar
           </button>
+          {todaySummary?.belum_absen > 0 && (
+            <button
+              onClick={handleAutoMarkAlfa}
+              style={{
+                padding: '8px 12px',
+                background: '#fef2f2',
+                border: '1px solid #fca5a5',
+                borderRadius: '8px',
+                color: '#991b1b',
+                fontWeight: 800,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title="Tandai semua siswa yang belum absen hari ini sebagai ALPA"
+            >
+              <UserX size={15} color="#b91c1c" /> Tutup Presensi ({todaySummary.belum_absen} Alfa)
+            </button>
+          )}
           <PressButton variant="amber" icon={Zap} onClick={() => setShowSimulator(true)}>
             Simulasi Tempel Kartu
           </PressButton>
@@ -257,7 +296,7 @@ export const TeacherDashboard = () => {
             <form onSubmit={handleUpdateSchedule} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>
-                  Batas Jam Masuk Pagi (WIB)
+                  Jam Masuk Sekolah (WIB)
                 </label>
                 <input
                   type="time"
@@ -266,7 +305,41 @@ export const TeacherDashboard = () => {
                   onChange={(e) => setScheduleForm({ ...scheduleForm, jam_masuk: e.target.value })}
                   required
                 />
-                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Siswa yang scan setelah jam ini otomatis berstatus <strong>TERLAMBAT</strong>.</span>
+                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Waktu resmi bel masuk kelas berbunyi.</span>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                  Toleransi Keterlambatan (Menit)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="120"
+                  className="skeuo-input"
+                  value={scheduleForm.toleransi_terlambat_menit}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, toleransi_terlambat_menit: parseInt(e.target.value) || 0 })}
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  Siswa yang scan dalam rentang toleransi ini tetap dicatat <strong>HADIR (Tepat Waktu)</strong>.
+                </span>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                  Batas Maksimal Masuk / Cut-off Alfa (WIB)
+                </label>
+                <input
+                  type="time"
+                  className="skeuo-input"
+                  value={scheduleForm.batas_akhir_masuk}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, batas_akhir_masuk: e.target.value })}
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  Setelah toleransi s/d jam ini dihitung <strong>TERLAMBAT</strong>. Jika scan melewati jam ini otomatis dianggap <strong>ALPA</strong>.
+                </span>
               </div>
 
               <div>
@@ -280,7 +353,7 @@ export const TeacherDashboard = () => {
                   onChange={(e) => setScheduleForm({ ...scheduleForm, jam_pulang: e.target.value })}
                   required
                 />
-                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Scan sebelum jam ini akan ditolak (perlindungan anti-double scan). Scan pada/setelah jam ini dihitung sebagai <strong>Absen Pulang</strong>.</span>
+                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Scan sebelum jam ini dilindungi (anti-double scan). Scan pada/setelah jam ini dihitung sebagai <strong>Absen Pulang</strong>.</span>
               </div>
 
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '12px' }}>

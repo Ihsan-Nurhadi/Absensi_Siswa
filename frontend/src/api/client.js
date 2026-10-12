@@ -63,6 +63,7 @@ export const teacherAPI = {
   getAttendanceToday: async () => (await client.get('/attendance/today_summary/')).data,
   getAttendanceList: async (params) => (await client.get('/attendance/', { params })).data,
   manualMarkAttendance: async (data) => (await client.post('/attendance/manual_mark/', data)).data,
+  autoMarkAlfa: async (data = {}) => (await client.post('/attendance/auto_mark_alfa/', data)).data,
 
   getFeedbackList: async (siswa_id) => (await client.get('/feedback/', { params: { siswa_id } })).data,
   createFeedback: async (data) => (await client.post('/feedback/', data)).data,

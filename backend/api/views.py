@@ -154,9 +154,33 @@ class AbsensiViewSet(viewsets.ModelViewSet):
 
         return Response(AbsensiSerializer(absensi).data)
 
+    @action(detail=False, methods=['post'])
+    def auto_mark_alfa(self, request):
+        """Allows teacher/admin to auto-mark all students without attendance as ALPA for the day."""
+        from api.attendance_service import auto_mark_alpa
+        user = request.user
+        target_date_str = request.data.get('tanggal')
+        kelas_id = request.data.get('kelas_id')
+
+        # If user is teacher, lock to their assigned class
+        if user.is_teacher() and hasattr(user, 'kelas_diampu') and user.kelas_diampu:
+            kelas_id = user.kelas_diampu.id
+
+        force_today = request.data.get('force', True)
+        result = auto_mark_alpa(
+            target_date=target_date_str,
+            kelas_id=kelas_id,
+            allow_weekends=False,
+            force_today=force_today
+        )
+        return Response(result)
+
     @action(detail=False, methods=['get'])
     def today_summary(self, request):
         """Returns summary count of attendance for today using Asia/Jakarta local date."""
+        from api.attendance_service import auto_close_past_records
+        auto_close_past_records()
+
         user = request.user
         local_now = timezone.localtime(timezone.now())
         today = local_now.date()
@@ -315,6 +339,8 @@ def admin_class_detail_view(request, pk):
             'nama': kelas.nama,
             'tahun_ajaran': kelas.tahun_ajaran,
             'jam_masuk': kelas.jam_masuk.strftime('%H:%M') if kelas.jam_masuk else '07:15',
+            'toleransi_terlambat_menit': kelas.toleransi_terlambat_menit if kelas.toleransi_terlambat_menit is not None else 15,
+            'batas_akhir_masuk': kelas.batas_akhir_masuk.strftime('%H:%M') if kelas.batas_akhir_masuk else '09:30',
             'jam_pulang': kelas.jam_pulang.strftime('%H:%M') if kelas.jam_pulang else '15:00',
             'topic_mqtt': kelas.topic_mqtt,
             'wali_kelas': {

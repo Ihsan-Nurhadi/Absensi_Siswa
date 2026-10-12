@@ -43,7 +43,12 @@ class KelasSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Kelas
-        fields = ['id', 'nama', 'tahun_ajaran', 'jam_masuk', 'jam_pulang', 'min_interval_pulang_jam', 'wali_kelas', 'wali_kelas_detail', 'wali_kelas_id', 'topic_mqtt', 'total_siswa', 'created_at']
+        fields = [
+            'id', 'nama', 'tahun_ajaran', 'jam_masuk', 'toleransi_terlambat_menit', 
+            'batas_akhir_masuk', 'jam_pulang', 'min_interval_pulang_jam', 
+            'wali_kelas', 'wali_kelas_detail', 'wali_kelas_id', 'topic_mqtt', 
+            'total_siswa', 'created_at'
+        ]
 
     def get_total_siswa(self, obj):
         return obj.siswa_list.count()

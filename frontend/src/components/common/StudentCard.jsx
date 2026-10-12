@@ -84,11 +84,21 @@ export const StudentCard = ({ student, todayStatus, onMarkStatus, onAddFeedback,
                 <LogOut size={10} /> Pulang: <strong>{waktuPulang}</strong>
               </div>
             ) : (
-              lupaPulang && (
+              lupaPulang ? (
                 <div style={{ color: '#b91c1c', fontWeight: 800, fontSize: '0.68rem' }}>
                   Tidak Absen Pulang
                 </div>
-              )
+              ) : null
+            )}
+            {todayStatus?.catatan_koreksi && (
+              <div style={{
+                fontSize: '0.67rem',
+                color: todayStatus?.status === 'TERLAMBAT' ? '#c2410c' : todayStatus?.status === 'ALPA' ? '#b91c1c' : '#059669',
+                marginTop: '2px',
+                lineHeight: 1.2
+              }}>
+                {todayStatus.catatan_koreksi}
+              </div>
             )}
           </div>
         </div>

@@ -33,6 +33,8 @@ class Kelas(models.Model):
     nama = models.CharField(max_length=50, unique=True)
     tahun_ajaran = models.CharField(max_length=20, default='2025/2026')
     jam_masuk = models.TimeField(default='07:15:00')
+    toleransi_terlambat_menit = models.IntegerField(default=15, help_text="Toleransi keterlambatan (menit)")
+    batas_akhir_masuk = models.TimeField(default='09:30:00', help_text="Batas maksimal jam masuk sebelum dianggap Alpa")
     jam_pulang = models.TimeField(default='15:00:00')
     min_interval_pulang_jam = models.IntegerField(default=7, help_text="Jeda minimal jam antara scan masuk & scan pulang")
     wali_kelas = models.OneToOneField(
@@ -71,6 +73,7 @@ class Absensi(models.Model):
     class SumberChoices(models.TextChoices):
         SCAN_MQTT = 'SCAN_MQTT', 'Scan Kartu (MQTT)'
         MANUAL = 'MANUAL', 'Koreksi Manual'
+        SISTEM_AUTO = 'SISTEM_AUTO', 'Otomatis Sistem (Alfa)'
 
     siswa = models.ForeignKey(Siswa, on_delete=models.CASCADE, related_name='absensi_list')
     tanggal = models.DateField()

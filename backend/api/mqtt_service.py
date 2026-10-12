@@ -172,38 +172,65 @@ class MQTTService:
             today = local_now.date()
             now_time = force_time if force_time else local_now.time()
 
-            # Automatic check for past records: flag lupa_absen_pulang if student had entry but no exit scan
-            yesterday_unclosed = Absensi.objects.filter(
-                tanggal__lt=today,
-                waktu_masuk__isnull=False,
-                waktu_pulang__isnull=True,
-                lupa_absen_pulang=False,
-                status__in=[Absensi.StatusChoices.HADIR, Absensi.StatusChoices.TERLAMBAT]
-            )
-            if yesterday_unclosed.exists():
-                yesterday_unclosed.update(lupa_absen_pulang=True)
+            # Automatic check for past records & auto-mark ALPA for unattended students
+            from api.attendance_service import auto_close_past_records, auto_mark_alpa
+            auto_close_past_records()
 
-            # Class entrance and departure rules
-            jam_masuk = siswa.kelas.jam_masuk if (siswa.kelas and siswa.kelas.jam_masuk) else datetime.time(7, 15)
-            jam_pulang = siswa.kelas.jam_pulang if (siswa.kelas and siswa.kelas.jam_pulang) else datetime.time(15, 0)
-            min_interval = siswa.kelas.min_interval_pulang_jam if (siswa.kelas and siswa.kelas.min_interval_pulang_jam) else 7
+            # Class entrance, grace period, late cut-off, and departure rules
+            kelas = siswa.kelas
+            jam_masuk = kelas.jam_masuk if (kelas and kelas.jam_masuk) else datetime.time(7, 15)
+            toleransi_menit = kelas.toleransi_terlambat_menit if (kelas and kelas.toleransi_terlambat_menit is not None) else 15
+            batas_akhir_masuk = kelas.batas_akhir_masuk if (kelas and kelas.batas_akhir_masuk) else datetime.time(9, 30)
+            jam_pulang = kelas.jam_pulang if (kelas and kelas.jam_pulang) else datetime.time(15, 0)
+            min_interval = kelas.min_interval_pulang_jam if (kelas and kelas.min_interval_pulang_jam) else 7
+
+            # Calculate time zone thresholds
+            masuk_dt = datetime.datetime.combine(today, jam_masuk)
+            toleransi_dt = masuk_dt + datetime.timedelta(minutes=toleransi_menit)
+            batas_akhir_dt = datetime.datetime.combine(today, batas_akhir_masuk)
+            now_dt = datetime.datetime.combine(today, now_time)
+
+            # Determine attendance status based on the 3 Time Zones:
+            # Zona 1: <= toleransi (HADIR)
+            # Zona 2: toleransi < scan <= batas_akhir_masuk (TERLAMBAT)
+            # Zona 3: > batas_akhir_masuk (ALPA)
+            catatan_awal = ""
+            if now_dt <= toleransi_dt:
+                initial_status = Absensi.StatusChoices.HADIR
+                if now_dt > masuk_dt:
+                    diff_m = int((now_dt - masuk_dt).total_seconds() / 60)
+                    catatan_awal = f"Tepat waktu (toleransi +{diff_m} menit)"
+            elif now_dt <= batas_akhir_dt:
+                initial_status = Absensi.StatusChoices.TERLAMBAT
+                late_m = int((now_dt - masuk_dt).total_seconds() / 60)
+                catatan_awal = f"Terlambat {late_m} menit"
+            else:
+                initial_status = Absensi.StatusChoices.ALPA
+                catatan_awal = f"Melewati batas maksimal masuk ({batas_akhir_masuk.strftime('%H:%M')} WIB)"
 
             absensi, created = Absensi.objects.get_or_create(
                 siswa=siswa,
                 tanggal=today,
                 defaults={
                     'waktu_scan': now_time,
-                    'waktu_masuk': now_time,
-                    'status': Absensi.StatusChoices.HADIR if now_time <= jam_masuk else Absensi.StatusChoices.TERLAMBAT,
-                    'sumber': Absensi.SumberChoices.SCAN_MQTT
+                    'waktu_masuk': now_time if initial_status != Absensi.StatusChoices.ALPA else None,
+                    'status': initial_status,
+                    'sumber': Absensi.SumberChoices.SCAN_MQTT,
+                    'catatan_koreksi': catatan_awal
                 }
             )
 
             if created:
                 # First scan of the day -> ENTRY (Absen Masuk)
-                status_text = "Tepat Waktu (HADIR)" if absensi.status == Absensi.StatusChoices.HADIR else f"TERLAMBAT (Melewati jam masuk {jam_masuk.strftime('%H:%M')})"
-                msg = f"Absen Masuk berhasil dicatat ({status_text}) pada jam {now_time.strftime('%H:%M')} WIB."
-                print(f"[Attendance Engine] ENTRY: {siswa.nama} ({absensi.status}) at {now_time.strftime('%H:%M:%S')} WIB")
+                if absensi.status == Absensi.StatusChoices.HADIR:
+                    status_text = "Tepat Waktu (HADIR)"
+                elif absensi.status == Absensi.StatusChoices.TERLAMBAT:
+                    status_text = f"TERLAMBAT ({catatan_awal})"
+                else:
+                    status_text = f"ALPA ({catatan_awal})"
+
+                msg = f"Absen Masuk dicatat ({status_text}) pada jam {now_time.strftime('%H:%M')} WIB."
+                print(f"[Attendance Engine] ENTRY: {siswa.nama} ({absensi.status}) at {now_time.strftime('%H:%M:%S')} WIB - {catatan_awal}")
                 return absensi, msg
 
             # If record already exists for today:

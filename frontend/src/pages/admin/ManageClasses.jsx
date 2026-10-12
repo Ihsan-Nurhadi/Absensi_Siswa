@@ -10,7 +10,16 @@ export const ManageClasses = () => {
   const [teachers, setTeachers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ nama: '', tahun_ajaran: '2025/2026', jam_masuk: '07:15', wali_kelas_id: '', topic_mqtt: '' });
+  const [form, setForm] = useState({ 
+    nama: '', 
+    tahun_ajaran: '2025/2026', 
+    jam_masuk: '07:15', 
+    toleransi_terlambat_menit: 15,
+    batas_akhir_masuk: '09:30',
+    jam_pulang: '15:00',
+    wali_kelas_id: '', 
+    topic_mqtt: '' 
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,7 +34,16 @@ export const ManageClasses = () => {
 
   const handleOpenNew = () => {
     setEditId(null);
-    setForm({ nama: '', tahun_ajaran: '2025/2026', jam_masuk: '07:15', wali_kelas_id: '', topic_mqtt: `sekolah/absen/kelas-${Date.now().toString().slice(-4)}` });
+    setForm({ 
+      nama: '', 
+      tahun_ajaran: '2025/2026', 
+      jam_masuk: '07:15', 
+      toleransi_terlambat_menit: 15,
+      batas_akhir_masuk: '09:30',
+      jam_pulang: '15:00',
+      wali_kelas_id: '', 
+      topic_mqtt: `sekolah/absen/kelas-${Date.now().toString().slice(-4)}` 
+    });
     setShowModal(true);
   };
 
@@ -34,7 +52,10 @@ export const ManageClasses = () => {
     setForm({
       nama: cls.nama,
       tahun_ajaran: cls.tahun_ajaran,
-      jam_masuk: cls.jam_masuk || '07:15',
+      jam_masuk: cls.jam_masuk ? cls.jam_masuk.slice(0, 5) : '07:15',
+      toleransi_terlambat_menit: cls.toleransi_terlambat_menit ?? 15,
+      batas_akhir_masuk: cls.batas_akhir_masuk ? cls.batas_akhir_masuk.slice(0, 5) : '09:30',
+      jam_pulang: cls.jam_pulang ? cls.jam_pulang.slice(0, 5) : '15:00',
       wali_kelas_id: cls.wali_kelas || '',
       topic_mqtt: cls.topic_mqtt
     });
@@ -83,7 +104,8 @@ export const ManageClasses = () => {
               <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', fontSize: '0.78rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
                 <th style={{ padding: '12px 14px' }}>Nama Kelas</th>
                 <th style={{ padding: '12px 14px' }}>Tahun Ajaran</th>
-                <th style={{ padding: '12px 14px' }}>Jam Masuk</th>
+                <th style={{ padding: '12px 14px' }}>Jam Masuk (+Toleransi)</th>
+                <th style={{ padding: '12px 14px' }}>Batas Masuk (Cut-off)</th>
                 <th style={{ padding: '12px 14px' }}>Wali Kelas</th>
                 <th style={{ padding: '12px 14px' }}>Topik Saluran (MQTT)</th>
                 <th style={{ padding: '12px 14px', textAlign: 'right' }}>Aksi</th>
@@ -94,7 +116,12 @@ export const ManageClasses = () => {
                 <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '0.88rem' }}>
                   <td style={{ padding: '12px 14px', fontWeight: 800, color: '#1e293b' }}>{c.nama}</td>
                   <td style={{ padding: '12px 14px', color: '#64748b' }}>{c.tahun_ajaran}</td>
-                  <td style={{ padding: '12px 14px', color: '#64748b', fontWeight: 700 }}>{c.jam_masuk} WIB</td>
+                  <td style={{ padding: '12px 14px', color: '#64748b', fontWeight: 700 }}>
+                    {c.jam_masuk?.slice(0, 5)} WIB <span style={{ fontSize: '0.72rem', color: '#059669', background: '#d1fae5', padding: '2px 5px', borderRadius: '4px' }}>+{c.toleransi_terlambat_menit ?? 15}m</span>
+                  </td>
+                  <td style={{ padding: '12px 14px', color: '#dc2626', fontWeight: 700 }}>
+                    {c.batas_akhir_masuk?.slice(0, 5) || '09:30'} WIB
+                  </td>
                   <td style={{ padding: '12px 14px', color: '#0f172a', fontWeight: 700 }}>
                     {c.wali_kelas_detail?.first_name ? `${c.wali_kelas_detail.first_name} ${c.wali_kelas_detail.last_name}` : <span style={{ color: '#ef4444', fontSize: '0.78rem' }}>Belum Ditugaskan</span>}
                   </td>
@@ -139,9 +166,25 @@ export const ManageClasses = () => {
                 <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>Tahun Ajaran</label>
                 <input type="text" className="skeuo-input" value={form.tahun_ajaran} onChange={(e) => setForm({...form, tahun_ajaran: e.target.value})} required />
               </div>
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>Jam Masuk</label>
-                <input type="time" className="skeuo-input" value={form.jam_masuk} onChange={(e) => setForm({...form, jam_masuk: e.target.value})} required />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>Jam Masuk</label>
+                  <input type="time" className="skeuo-input" value={form.jam_masuk} onChange={(e) => setForm({...form, jam_masuk: e.target.value})} required />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>Toleransi (Menit)</label>
+                  <input type="number" min="0" max="120" className="skeuo-input" value={form.toleransi_terlambat_menit} onChange={(e) => setForm({...form, toleransi_terlambat_menit: parseInt(e.target.value) || 0})} required />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>Batas Masuk (Cut-Off)</label>
+                  <input type="time" className="skeuo-input" value={form.batas_akhir_masuk} onChange={(e) => setForm({...form, batas_akhir_masuk: e.target.value})} required />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>Jam Keluar / Pulang</label>
+                  <input type="time" className="skeuo-input" value={form.jam_pulang} onChange={(e) => setForm({...form, jam_pulang: e.target.value})} required />
+                </div>
               </div>
               <div>
                 <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>Wali Kelas (1-to-1)</label>
