@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: absensi_backend
+    restart: always
+    environment:
+      - DJANGO_DEBUG=False
+      - DJANGO_SECRET_KEY=absensi-siswa-vps-key-secret-2026
+      - DJANGO_ALLOWED_HOSTS=*
+      - ENABLE_MQTT=true
+      - SQLITE_DB_PATH=/app/data/db.sqlite3
+    volumes:
+      # Persistent storage for SQLite database so data is safe across rebuilds
+      - backend_data:/app/data
+      # Shared staticfiles directory for Django Admin CSS/JS
+      - static_volume:/app/staticfiles
+    networks:
+      - absensi_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: absensi_frontend
+    restart: always
+    ports:
+      # Expose on port 3004 on VPS 110.232.92.134
+      - "3004:80"
+    volumes:
+      # Mount Django staticfiles so Nginx can serve admin styling directly
+      - static_volume:/app/staticfiles:ro
+    depends_on:
+      - backend
+    networks:
+      - absensi_network
+
+volumes:
+  backend_data:
+    name: absensi_backend_data
+  static_volume:
+    name: absensi_static_volume
+
+networks:
+  absensi_network:
+    name: absensi_network
+    driver: bridge

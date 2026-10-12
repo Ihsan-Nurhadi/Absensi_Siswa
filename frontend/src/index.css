@@ -1,0 +1,322 @@
+/* Skeuomorphic CSS Design System for Attendance System */
+:root {
+  /* Warm Color Palette */
+  --bg-main: #f5f2eb;
+  --bg-pattern: radial-gradient(#e2ded4 1px, transparent 1.5px);
+  --paper-ivory: #fdfbf7;
+  --paper-cream: #faf6ee;
+  
+  --primary-slate: #2c3e50;
+  --primary-hover: #1e2b37;
+  --accent-amber: #d97706;
+
+  /* Stamp Colors */
+  --stamp-hadir-bg: #ecfdf5;
+  --stamp-hadir-border: #059669;
+  --stamp-hadir-text: #047857;
+
+  --stamp-terlambat-bg: #fff7ed;
+  --stamp-terlambat-border: #ea580c;
+  --stamp-terlambat-text: #c2410c;
+
+  --stamp-izin-bg: #fefce8;
+  --stamp-izin-border: #ca8a04;
+  --stamp-izin-text: #a16207;
+
+  --stamp-sakit-bg: #f0fdf4;
+  --stamp-sakit-border: #16a34a;
+  --stamp-sakit-text: #15803d;
+
+  --stamp-alpa-bg: #fef2f2;
+  --stamp-alpa-border: #dc2626;
+  --stamp-alpa-text: #b91c1c;
+
+  /* Skeuomorphic Shadows */
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --shadow-card-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 1);
+  --shadow-button-3d: 0 4px 0 #1a252f, 0 5px 10px rgba(0, 0, 0, 0.15);
+  --shadow-button-pressed: 0 1px 0 #1a252f, inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-inset-input: inset 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-main);
+  background-image: var(--bg-pattern);
+  background-size: 16px 16px;
+  color: #27272a;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #eae6dd;
+}
+::-webkit-scrollbar-thumb {
+  background: #bbb5a8;
+  border-radius: 4px;
+}
+
+/* Responsive Container */
+.app-container {
+  flex: 1;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 20px 16px;
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    padding: 12px 10px;
+  }
+}
+
+/* Skeuomorphic Utility Classes */
+.skeuo-card {
+  background: var(--paper-ivory);
+  border: 1px solid #e5e0d8;
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  transition: all 0.2s ease-in-out;
+}
+
+.skeuo-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.press-btn {
+  background: linear-gradient(180deg, #34495e 0%, #2c3e50 100%);
+  color: #ffffff;
+  border: 1px solid #1f2d3a;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-button-3d);
+  transition: all 0.1s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  user-select: none;
+  min-height: 38px;
+}
+
+.press-btn:hover {
+  background: linear-gradient(180deg, #3d566e 0%, #34495e 100%);
+}
+
+.press-btn:active {
+  transform: translateY(3px);
+  box-shadow: var(--shadow-button-pressed);
+}
+
+.press-btn-secondary {
+  background: linear-gradient(180deg, #ffffff 0%, #f4eff5 100%);
+  color: #2c3e50;
+  border: 1px solid #cfc8be;
+  box-shadow: 0 3px 0 #bbb5a8, 0 4px 6px rgba(0,0,0,0.06);
+}
+.press-btn-secondary:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #e9e3da 100%);
+}
+.press-btn-secondary:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 2px 3px rgba(0,0,0,0.1);
+}
+
+.press-btn-amber {
+  background: linear-gradient(180deg, #d97706 0%, #b45309 100%);
+  border-color: #92400e;
+  box-shadow: 0 4px 0 #78350f, 0 5px 10px rgba(0, 0, 0, 0.15);
+}
+.press-btn-amber:hover {
+  background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+}
+.press-btn-amber:active {
+  transform: translateY(3px);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.skeuo-input {
+  background: #fdfbf7;
+  border: 1px solid #d4cebe;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 0.92rem;
+  color: #27272a;
+  box-shadow: var(--shadow-inset-input);
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s ease;
+  min-height: 38px;
+}
+
+.skeuo-input:focus {
+  border-color: #2c3e50;
+  background: #ffffff;
+}
+
+/* Stamp Badges (Stempel Visual) */
+.stamp-badge {
+  font-family: 'Special Elite', cursive, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed;
+  transform: rotate(-2deg);
+  box-shadow: 1px 2px 4px rgba(0,0,0,0.08);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.stamp-hadir {
+  background: var(--stamp-hadir-bg);
+  border-color: var(--stamp-hadir-border);
+  color: var(--stamp-hadir-text);
+}
+
+.stamp-terlambat {
+  background: var(--stamp-terlambat-bg);
+  border-color: var(--stamp-terlambat-border);
+  color: var(--stamp-terlambat-text);
+  transform: rotate(2deg);
+}
+
+.stamp-izin {
+  background: var(--stamp-izin-bg);
+  border-color: var(--stamp-izin-border);
+  color: var(--stamp-izin-text);
+}
+
+.stamp-sakit {
+  background: var(--stamp-sakit-bg);
+  border-color: var(--stamp-sakit-border);
+  color: var(--stamp-sakit-text);
+  transform: rotate(-1deg);
+}
+
+.stamp-alpa {
+  background: var(--stamp-alpa-bg);
+  border-color: var(--stamp-alpa-border);
+  color: var(--stamp-alpa-text);
+  opacity: 0.9;
+}
+
+/* Sticky Note (Catatan Tempel) */
+.sticky-note {
+  background: #fef08a;
+  background-image: linear-gradient(180deg, #fef9c3 0%, #fef08a 100%);
+  color: #713f12;
+  padding: 14px 16px;
+  border-radius: 2px 2px 16px 2px;
+  box-shadow: 2px 8px 15px rgba(0,0,0,0.12), inset 0 -2px 5px rgba(0,0,0,0.04);
+  position: relative;
+  font-family: 'Caveat', cursive, sans-serif;
+  font-size: 1.2rem;
+  line-height: 1.35;
+  transform: rotate(-1deg);
+}
+
+.sticky-note::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 40%;
+  width: 45px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  transform: rotate(2deg);
+  border-radius: 2px;
+}
+
+/* Graph Paper Millimeter Grid */
+.graph-paper-bg {
+  background-color: #fffdf9;
+  background-image: 
+    linear-gradient(rgba(200, 220, 240, 0.4) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 220, 240, 0.4) 1px, transparent 1px),
+    linear-gradient(rgba(200, 220, 240, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 220, 240, 0.2) 1px, transparent 1px);
+  background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+}
+
+/* Torn Calendar Widget */
+.torn-calendar {
+  width: 76px;
+  background: #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+  border: 1px solid #e0d6c8;
+  text-align: center;
+  flex-shrink: 0;
+}
+.torn-calendar-header {
+  background: #c2410c;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 3px 0;
+  letter-spacing: 1px;
+}
+.torn-calendar-body {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #1e293b;
+  padding: 4px 0;
+}
+.torn-calendar-footer {
+  font-size: 0.65rem;
+  color: #64748b;
+  padding-bottom: 3px;
+}
+
+/* Responsive Table Wrapper */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive table {
+  min-width: 580px;
+}
+
+/* Responsive Typography */
+@media (max-width: 768px) {
+  h1 {
+    font-size: 1.25rem !important;
+  }
+  h2 {
+    font-size: 1.1rem !important;
+  }
+  h3 {
+    font-size: 1rem !important;
+  }
+}

@@ -1,0 +1,56 @@
+# ==============================
+# Node & Frontend (React/Vite)
+# ==============================
+node_modules/
+*/node_modules/
+frontend/node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# ==============================
+# Python & Django (Backend)
+# ==============================
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/staticfiles/
+staticfiles/
+media/
+*.log
+
+# Environments
+.env
+.env.*
+!.env.example
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Database (uncomment if you don't want to track sqlite database in Git)
+# *.sqlite3
+# *.sqlite3-journal
+
+# ==============================
+# IDE & System Files
+# ==============================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
