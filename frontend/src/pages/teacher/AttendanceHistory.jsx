@@ -4,12 +4,22 @@ import SkeuoCard from '../../components/common/SkeuoCard';
 import StampBadge from '../../components/common/StampBadge';
 import TornCalendar from '../../components/common/TornCalendar';
 import PressButton from '../../components/common/PressButton';
+import PasswordConfirmModal from '../../components/common/PasswordConfirmModal';
 import { Calendar, Filter, Edit3 } from 'lucide-react';
 
 export const AttendanceHistory = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Bypass modal state
+  const [bypassModal, setBypassModal] = useState({
+    isOpen: false,
+    student: null,
+    targetStatus: '',
+    loading: false,
+    error: '',
+  });
 
   useEffect(() => {
     loadLogs();
@@ -27,16 +37,37 @@ export const AttendanceHistory = () => {
     }
   };
 
-  const handleManualMark = async (siswaId, statusVal) => {
+  const handleOpenBypassModal = (log, statusVal) => {
+    setBypassModal({
+      isOpen: true,
+      student: { id: log.siswa, nama: log.siswa_nama, nis: log.siswa_nis },
+      targetStatus: statusVal,
+      loading: false,
+      error: '',
+    });
+  };
+
+  const handleConfirmBypass = async (password) => {
+    if (!bypassModal.student || !bypassModal.targetStatus) return;
+    setBypassModal((prev) => ({ ...prev, loading: true, error: '' }));
     try {
       await teacherAPI.manualMarkAttendance({
-        siswa_id: siswaId,
-        status: statusVal,
-        tanggal: selectedDate
+        siswa_id: bypassModal.student.id,
+        status: bypassModal.targetStatus,
+        tanggal: selectedDate,
+        password: password,
+      });
+      setBypassModal({
+        isOpen: false,
+        student: null,
+        targetStatus: '',
+        loading: false,
+        error: '',
       });
       loadLogs();
     } catch (err) {
-      alert("Gagal mengoreksi status.");
+      const errMsg = err.response?.data?.error || err.response?.data?.message || 'Password salah! Presensi tidak diubah.';
+      setBypassModal((prev) => ({ ...prev, loading: false, error: errMsg }));
     }
   };
 
@@ -100,10 +131,10 @@ export const AttendanceHistory = () => {
                     </td>
                     <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '3px', justifyContent: 'flex-end' }}>
-                        <button onClick={() => handleManualMark(log.siswa, 'HADIR')} style={{ padding: '2px 5px', fontSize: '0.72rem', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}>Hadir</button>
-                        <button onClick={() => handleManualMark(log.siswa, 'IZIN')} style={{ padding: '2px 5px', fontSize: '0.72rem', background: '#fef9c3', color: '#854d0e', border: '1px solid #fde047', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}>Izin</button>
-                        <button onClick={() => handleManualMark(log.siswa, 'SAKIT')} style={{ padding: '2px 5px', fontSize: '0.72rem', background: '#e0e7ff', color: '#3730a3', border: '1px solid #a5b4fc', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}>Sakit</button>
-                        <button onClick={() => handleManualMark(log.siswa, 'ALPA')} style={{ padding: '2px 5px', fontSize: '0.72rem', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}>Alpa</button>
+                        <button onClick={() => handleOpenBypassModal(log, 'HADIR')} style={{ padding: '2px 5px', fontSize: '0.72rem', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}>Hadir</button>
+                        <button onClick={() => handleOpenBypassModal(log, 'IZIN')} style={{ padding: '2px 5px', fontSize: '0.72rem', background: '#fef9c3', color: '#854d0e', border: '1px solid #fde047', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}>Izin</button>
+                        <button onClick={() => handleOpenBypassModal(log, 'SAKIT')} style={{ padding: '2px 5px', fontSize: '0.72rem', background: '#e0e7ff', color: '#3730a3', border: '1px solid #a5b4fc', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}>Sakit</button>
+                        <button onClick={() => handleOpenBypassModal(log, 'ALPA')} style={{ padding: '2px 5px', fontSize: '0.72rem', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}>Alpa</button>
                       </div>
                     </td>
                   </tr>
@@ -113,6 +144,17 @@ export const AttendanceHistory = () => {
           </table>
         </div>
       </SkeuoCard>
+
+      {/* Modal Verifikasi Password Bypass Manual */}
+      <PasswordConfirmModal
+        isOpen={bypassModal.isOpen}
+        onClose={() => setBypassModal({ isOpen: false, student: null, targetStatus: '', loading: false, error: '' })}
+        onConfirm={handleConfirmBypass}
+        student={bypassModal.student}
+        targetStatus={bypassModal.targetStatus}
+        loading={bypassModal.loading}
+        error={bypassModal.error}
+      />
     </div>
   );
 };

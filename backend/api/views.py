@@ -120,7 +120,14 @@ class AbsensiViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def manual_mark(self, request):
-        """Allows teacher to manually record or update student status."""
+        """Allows teacher to manually record or update student status with password verification."""
+        password = request.data.get('password')
+        if not password:
+            return Response({'error': 'Password akun wajib diisi untuk konfirmasi verifikasi bypass.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not request.user.check_password(password):
+            return Response({'error': 'Password akun salah! Presensi tidak diubah.'}, status=status.HTTP_403_FORBIDDEN)
+
         siswa_id = request.data.get('siswa_id')
         local_now = timezone.localtime(timezone.now())
         tanggal_str = request.data.get('tanggal', str(local_now.date()))

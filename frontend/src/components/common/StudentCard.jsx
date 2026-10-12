@@ -118,29 +118,29 @@ export const StudentCard = ({ student, todayStatus, onMarkStatus, onAddFeedback,
         }}>
           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
             <button
-              onClick={() => onMarkStatus(student.id, 'HADIR')}
-              title="Tandai Hadir"
+              onClick={() => onMarkStatus(student, 'HADIR')}
+              title="Tandai Hadir (Bypass)"
               style={{ padding: '4px 7px', fontSize: '0.72rem', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
             >
               Hadir
             </button>
             <button
-              onClick={() => onMarkStatus(student.id, 'IZIN')}
-              title="Tandai Izin"
+              onClick={() => onMarkStatus(student, 'IZIN')}
+              title="Tandai Izin (Bypass)"
               style={{ padding: '4px 7px', fontSize: '0.72rem', background: '#fef9c3', color: '#854d0e', border: '1px solid #fde047', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
             >
               Izin
             </button>
             <button
-              onClick={() => onMarkStatus(student.id, 'SAKIT')}
-              title="Tandai Sakit"
+              onClick={() => onMarkStatus(student, 'SAKIT')}
+              title="Tandai Sakit (Bypass)"
               style={{ padding: '4px 7px', fontSize: '0.72rem', background: '#e0e7ff', color: '#3730a3', border: '1px solid #a5b4fc', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
             >
               Sakit
             </button>
             <button
-              onClick={() => onMarkStatus(student.id, 'ALPA')}
-              title="Tandai Alpa"
+              onClick={() => onMarkStatus(student, 'ALPA')}
+              title="Tandai Alpa (Bypass)"
               style={{ padding: '4px 7px', fontSize: '0.72rem', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
             >
               Alpa

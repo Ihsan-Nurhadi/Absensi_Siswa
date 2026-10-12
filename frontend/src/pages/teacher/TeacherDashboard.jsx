@@ -5,6 +5,7 @@ import SkeuoCard from '../../components/common/SkeuoCard';
 import PressButton from '../../components/common/PressButton';
 import SimulatorModal from '../../components/common/SimulatorModal';
 import StickyNote from '../../components/common/StickyNote';
+import PasswordConfirmModal from '../../components/common/PasswordConfirmModal';
 import { Calendar, Users, Zap, FileSpreadsheet, Plus, MessageSquare, Clock, Settings, UserX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -30,6 +31,15 @@ export const TeacherDashboard = () => {
 
   // Share WA modal
   const [waReportData, setWaReportData] = useState(null);
+
+  // Bypass Manual Password Verification Modal
+  const [bypassModal, setBypassModal] = useState({
+    isOpen: false,
+    student: null,
+    targetStatus: '',
+    loading: false,
+    error: '',
+  });
 
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -86,16 +96,44 @@ export const TeacherDashboard = () => {
     }
   };
 
-  const handleMarkStatus = async (siswaId, statusVal) => {
+  const handleMarkStatus = (studentOrId, statusVal) => {
+    let studentObj = null;
+    if (typeof studentOrId === 'object' && studentOrId !== null) {
+      studentObj = studentOrId;
+    } else {
+      studentObj = students.find((s) => s.id === studentOrId) || { id: studentOrId, nama: 'Siswa' };
+    }
+
+    setBypassModal({
+      isOpen: true,
+      student: studentObj,
+      targetStatus: statusVal,
+      loading: false,
+      error: '',
+    });
+  };
+
+  const handleConfirmBypass = async (password) => {
+    if (!bypassModal.student || !bypassModal.targetStatus) return;
+    setBypassModal((prev) => ({ ...prev, loading: true, error: '' }));
     try {
       await teacherAPI.manualMarkAttendance({
-        siswa_id: siswaId,
-        status: statusVal,
-        tanggal: new Date().toISOString().split('T')[0]
+        siswa_id: bypassModal.student.id,
+        status: bypassModal.targetStatus,
+        tanggal: new Date().toISOString().split('T')[0],
+        password: password,
+      });
+      setBypassModal({
+        isOpen: false,
+        student: null,
+        targetStatus: '',
+        loading: false,
+        error: '',
       });
       await loadDashboardData();
     } catch (err) {
-      alert("Gagal memperbarui status absensi.");
+      const errMsg = err.response?.data?.error || err.response?.data?.message || 'Password salah! Presensi tidak diubah.';
+      setBypassModal((prev) => ({ ...prev, loading: false, error: errMsg }));
     }
   };
 
@@ -426,6 +464,17 @@ export const TeacherDashboard = () => {
           </SkeuoCard>
         </div>
       )}
+
+      {/* Modal Verifikasi Password Bypass Manual */}
+      <PasswordConfirmModal
+        isOpen={bypassModal.isOpen}
+        onClose={() => setBypassModal({ isOpen: false, student: null, targetStatus: '', loading: false, error: '' })}
+        onConfirm={handleConfirmBypass}
+        student={bypassModal.student}
+        targetStatus={bypassModal.targetStatus}
+        loading={bypassModal.loading}
+        error={bypassModal.error}
+      />
     </div>
   );
 };

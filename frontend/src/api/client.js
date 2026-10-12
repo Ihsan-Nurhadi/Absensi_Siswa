@@ -56,6 +56,7 @@ export const teacherAPI = {
   getStudents: async () => (await client.get('/students/')).data,
   createStudent: async (data) => (await client.post('/students/', data)).data,
   updateStudent: async (id, data) => (await client.patch(`/students/${id}/`, data)).data,
+  deleteStudent: async (id) => (await client.delete(`/students/${id}/`)).data,
 
   getClassInfo: async (classId) => (await client.get(`/classes/${classId}/`)).data,
   updateClassSchedule: async (classId, data) => (await client.patch(`/classes/${classId}/`, data)).data,
