@@ -245,8 +245,11 @@ class MQTTService:
                 elapsed_seconds = (current_dt - entry_dt).total_seconds()
                 elapsed_hours = elapsed_seconds / 3600.0
 
-                # Check if this scan is valid for PULANG (Exit) based on Jam Keluar or Elapsed Interval
-                is_exit_time = (now_time >= jam_pulang) or (elapsed_hours >= min_interval) or (force_type == 'PULANG')
+                # Check if this scan is valid for PULANG (Exit) based on Jam Keluar
+                # Syarat Absen Pulang: Waktu scan harus sudah mencapai atau melewati jam_pulang sekolah
+                # Dilengkapi proteksi anti-burst (jeda minimal 60 detik dari scan masuk agar tidak langsung terhitung pulang)
+                is_burst_duplicate = elapsed_seconds < 60
+                is_exit_time = (now_time >= jam_pulang and not is_burst_duplicate) or (force_type == 'PULANG')
 
                 if is_exit_time:
                     absensi.waktu_pulang = now_time
