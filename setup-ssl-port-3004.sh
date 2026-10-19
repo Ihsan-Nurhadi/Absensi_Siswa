@@ -2,13 +2,13 @@
 # ==============================================================================
 # Script Setup HTTPS di Port 3004 untuk dev.nayakacloud.com
 # Menggunakan sertifikat SSL dev.nayakacloud.com yang sudah aktif di VPS
+# Dilengkapi pendeteksi port internal otomatis untuk mencegah bentrok
 # ==============================================================================
 
 set -e
 
 DOMAIN="dev.nayakacloud.com"
 PORT_PUBLIC="3004"
-PORT_INTERNAL="3005"
 
 echo "=========================================================="
 echo "  SETUP HTTPS / SSL DI PORT ${PORT_PUBLIC} UNTUK ${DOMAIN}"
@@ -21,8 +21,29 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# 2. Deteksi lokasi sertifikat SSL yang sudah ada di VPS
-echo "[1/4] Mendeteksi sertifikat SSL yang sudah aktif di VPS..."
+# 2. Deteksi otomatis port internal yang belum terpakai (3010 - 3099)
+echo "[1/5] Mencari port internal bebas di VPS..."
+
+find_free_port() {
+    local start_port=3010
+    local end_port=3099
+    for p in $(seq $start_port $end_port); do
+        # Cek apakah port dipakai di network VPS atau Docker
+        if ! ss -tuln 2>/dev/null | grep -q ":$p "; then
+            if ! docker ps --format '{{.Ports}}' 2>/dev/null | grep -q ":$p->"; then
+                echo "$p"
+                return 0
+            fi
+        fi
+    done
+    echo "3088"
+}
+
+PORT_INTERNAL=$(find_free_port)
+echo "-> Port internal terpilih: ${PORT_INTERNAL} (bebas konflik)"
+
+# 3. Deteksi lokasi sertifikat SSL yang sudah ada di VPS
+echo "[2/5] Mendeteksi sertifikat SSL yang sudah aktif di VPS..."
 
 CERT_PATH=""
 KEY_PATH=""
@@ -32,7 +53,7 @@ if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
     CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
     KEY_PATH="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
 else
-    # Coba cari dari konfigurasi Nginx yang sudah berjalan
+    # Coba cari dari konfigurasi Nginx yang sudah berjalan (Nextcloud)
     DETECTED_CERT=$(grep -rh "ssl_certificate " /etc/nginx/ 2>/dev/null | grep -v "#" | head -n 1 | awk '{print $2}' | tr -d ';')
     DETECTED_KEY=$(grep -rh "ssl_certificate_key " /etc/nginx/ 2>/dev/null | grep -v "#" | head -n 1 | awk '{print $2}' | tr -d ';')
     
@@ -59,16 +80,20 @@ fi
 echo "-> Menggunakan Sertifikat: $CERT_PATH"
 echo "-> Menggunakan Private Key: $KEY_PATH"
 
-# 3. Ubah docker-compose.yml agar container internal memakai port 3005
-echo "[2/4] Mengalihkan port Docker frontend ke internal port ${PORT_INTERNAL}..."
+# 4. Hentikan container lama terlebih dahulu agar port terbebas
+echo "[3/5] Menghentikan container absensi lama untuk membebaskan port..."
+docker compose stop frontend 2>/dev/null || true
+docker compose rm -f frontend 2>/dev/null || true
+
+# 5. Ubah docker-compose.yml agar container internal memakai port bebas terpilih
+echo "[4/5] Memperbarui port di docker-compose.yml ke 127.0.0.1:${PORT_INTERNAL}:80..."
 if [ -f "docker-compose.yml" ]; then
-    # Ganti "3004:80" menjadi "127.0.0.1:3005:80"
-    sed -i "s/\"3004:80\"/\"127.0.0.1:${PORT_INTERNAL}:80\"/g" docker-compose.yml
-    sed -i "s/'3004:80'/'127.0.0.1:${PORT_INTERNAL}:80'/g" docker-compose.yml
+    # Ganti port apapun yang mengarah ke :80 dengan port internal baru
+    sed -i -E "s/(\"|')[0-9.:]*:80(\"|')/\"127.0.0.1:${PORT_INTERNAL}:80\"/g" docker-compose.yml
 fi
 
-# 4. Buat konfigurasi Nginx Host untuk port 3004 SSL
-echo "[3/4] Memasang konfigurasi Nginx Host di /etc/nginx/conf.d/absensi-ssl-3004.conf..."
+# 6. Buat konfigurasi Nginx Host untuk port 3004 SSL
+echo "[5/5] Memasang konfigurasi Nginx Host di /etc/nginx/conf.d/absensi-ssl-3004.conf..."
 cat << EOF > /etc/nginx/conf.d/absensi-ssl-3004.conf
 server {
     listen ${PORT_PUBLIC} ssl;
@@ -114,12 +139,11 @@ if command -v ufw > /dev/null 2>&1; then
     ufw reload || true
 fi
 
-# 5. Uji konfigurasi Nginx dan Restart Layanan
-echo "[4/4] Menguji konfigurasi Nginx dan me-restart container..."
+# 7. Uji konfigurasi Nginx dan Reload
 nginx -t
 systemctl reload nginx
 
-# Jalankan ulang docker-compose dengan port baru
+# 8. Jalankan kembali container Docker
 docker compose up -d
 
 echo ""
@@ -129,6 +153,7 @@ echo "=========================================================="
 echo "Website sekarang dapat diakses secara aman melalui:"
 echo "  URL: https://${DOMAIN}:${PORT_PUBLIC}"
 echo ""
+echo "Port internal Docker berjalan di 127.0.0.1:${PORT_INTERNAL}."
 echo "Program lain di https://${DOMAIN} (port 443) TETAP BERJALAN NORMAL."
 echo "Setiap request HTTP ke port ${PORT_PUBLIC} akan otomatis dialihkan ke HTTPS."
 echo "=========================================================="

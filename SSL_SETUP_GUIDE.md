@@ -85,7 +85,7 @@ server {
     client_max_body_size 25M;
 
     location / {
-        proxy_pass http://127.0.0.1:3005;
+        proxy_pass http://127.0.0.1:3015;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -101,10 +101,10 @@ server {
 ```
 
 ### 3. Update `docker-compose.yml`
-Pastikan service `frontend` di `docker-compose.yml` mengarah ke port internal 3005:
+Pastikan service `frontend` di `docker-compose.yml` mengarah ke port internal 3015:
 ```yaml
     ports:
-      - "127.0.0.1:3005:80"
+      - "127.0.0.1:3015:80"
 ```
 
 Lalu jalankan ulang container:

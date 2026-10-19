@@ -28,8 +28,8 @@ services:
     container_name: absensi_frontend
     restart: always
     ports:
-      # Expose internally on port 3005, Nginx Host handles port 3004 with SSL
-      - "127.0.0.1:3005:80"
+      # Expose internally on port 3015, Nginx Host handles port 3004 with SSL
+      - "127.0.0.1:3015:80"
     volumes:
       # Mount Django staticfiles so Nginx can serve admin styling directly
       - static_volume:/app/staticfiles:ro
