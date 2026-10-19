@@ -88,7 +88,21 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3004',
     'http://127.0.0.1:3004',
     'http://110.232.92.134:3004',
+    'https://110.232.92.134:3004',
+    'http://dev.nayakacloud.com:3004',
+    'https://dev.nayakacloud.com:3004',
+    'http://dev.nayakacloud.com',
+    'https://dev.nayakacloud.com',
 ]
+
+extra_csrf = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '')
+if extra_csrf:
+    CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in extra_csrf.split(',') if origin.strip()])
+
+# Reverse Proxy SSL Configuration
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
