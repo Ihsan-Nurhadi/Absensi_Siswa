@@ -17,6 +17,8 @@ export const ManageClasses = () => {
     toleransi_terlambat_menit: 15,
     batas_akhir_masuk: '09:30',
     jam_pulang: '15:00',
+    tanggal_auto_report: 25,
+    enable_auto_report: true,
     wali_kelas_id: '', 
     topic_mqtt: '' 
   });
@@ -41,6 +43,8 @@ export const ManageClasses = () => {
       toleransi_terlambat_menit: 15,
       batas_akhir_masuk: '09:30',
       jam_pulang: '15:00',
+      tanggal_auto_report: 25,
+      enable_auto_report: true,
       wali_kelas_id: '', 
       topic_mqtt: `sekolah/absen/kelas-${Date.now().toString().slice(-4)}` 
     });
@@ -56,6 +60,8 @@ export const ManageClasses = () => {
       toleransi_terlambat_menit: cls.toleransi_terlambat_menit ?? 15,
       batas_akhir_masuk: cls.batas_akhir_masuk ? cls.batas_akhir_masuk.slice(0, 5) : '09:30',
       jam_pulang: cls.jam_pulang ? cls.jam_pulang.slice(0, 5) : '15:00',
+      tanggal_auto_report: cls.tanggal_auto_report ?? 25,
+      enable_auto_report: cls.enable_auto_report ?? true,
       wali_kelas_id: cls.wali_kelas || '',
       topic_mqtt: cls.topic_mqtt
     });
@@ -184,6 +190,40 @@ export const ManageClasses = () => {
                 <div>
                   <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px' }}>Jam Keluar / Pulang</label>
                   <input type="time" className="skeuo-input" value={form.jam_pulang} onChange={(e) => setForm({...form, jam_pulang: e.target.value})} required />
+                </div>
+              </div>
+
+              <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#1e293b' }}>
+                    📅 Jadwal Auto Report Bulanan
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, color: '#0284c7' }}>
+                    <input
+                      type="checkbox"
+                      checked={form.enable_auto_report}
+                      onChange={(e) => setForm({ ...form, enable_auto_report: e.target.checked })}
+                    />
+                    Aktif
+                  </label>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '3px' }}>
+                    Tanggal Auto Report Tiap Bulan (1 - 31)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    className="skeuo-input"
+                    disabled={!form.enable_auto_report}
+                    value={form.tanggal_auto_report}
+                    onChange={(e) => setForm({ ...form, tanggal_auto_report: parseInt(e.target.value) || 25 })}
+                    required
+                  />
+                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                    Rapor bulanan siswa akan di-generate tiap tanggal {form.tanggal_auto_report || 25}.
+                  </span>
                 </div>
               </div>
               <div>

@@ -37,6 +37,8 @@ class Kelas(models.Model):
     batas_akhir_masuk = models.TimeField(default='09:30:00', help_text="Batas maksimal jam masuk sebelum dianggap Alpa")
     jam_pulang = models.TimeField(default='15:00:00')
     min_interval_pulang_jam = models.IntegerField(default=7, help_text="Jeda minimal jam antara scan masuk & scan pulang")
+    tanggal_auto_report = models.IntegerField(default=25, help_text="Tanggal tiap bulan untuk trigger auto report (1-31)")
+    enable_auto_report = models.BooleanField(default=True, help_text="Aktifkan pengiriman/pembuatan auto report bulanan")
     wali_kelas = models.OneToOneField(
         User, 
         on_delete=models.SET_NULL, 

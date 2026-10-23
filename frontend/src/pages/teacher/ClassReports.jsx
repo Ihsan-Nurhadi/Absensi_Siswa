@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { teacherAPI } from '../../api/client';
 import SkeuoCard from '../../components/common/SkeuoCard';
 import PressButton from '../../components/common/PressButton';
-import { FileSpreadsheet, Download, Share2, Send, ExternalLink } from 'lucide-react';
+import { FileSpreadsheet, Download, Share2, Send, ExternalLink, Zap } from 'lucide-react';
+import { getNamaBulan, getOpsiBulan } from '../../utils/dateUtils';
 
 export const ClassReports = () => {
   const [students, setStudents] = useState([]);
@@ -10,6 +11,7 @@ export const ClassReports = () => {
   const [year, setYear] = useState(new Date().getFullYear());
   const [waModal, setWaModal] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [triggering, setTriggering] = useState(false);
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -30,7 +32,7 @@ export const ClassReports = () => {
       const url = window.URL.createObjectURL(new Blob([blob]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Rekap_Absensi_${user.kelas_nama || 'Kelas'}_Bulan_${month}_${year}.xlsx`);
+      link.setAttribute('download', `Rekap_Absensi_${user.kelas_nama || 'Kelas'}_${getNamaBulan(month)}_${year}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
@@ -40,6 +42,36 @@ export const ClassReports = () => {
       alert("Gagal mengunduh laporan Excel. Pastikan data kelas tersedia.");
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleDownloadPdf = async (student) => {
+    try {
+      const blob = await teacherAPI.downloadStudentPDF(student.id, month, year);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Rapor_Absensi_${student.nama.replace(/\s+/g, '_')}_${getNamaBulan(month)}_${year}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Gagal mengunduh rapor PDF siswa.");
+    }
+  };
+
+  const handleTriggerAutoReport = async () => {
+    if (!user.kelas_id) return alert("Anda belum ditugaskan di kelas manapun.");
+    if (!window.confirm(`Generate token laporan & auto report untuk seluruh siswa kelas ${user.kelas_nama || ''} sekarang?`)) return;
+    setTriggering(true);
+    try {
+      const res = await teacherAPI.triggerAutoReport(user.kelas_id, true);
+      alert(`Berhasil memproses Auto Report! ${res.total_tokens_created} token baru dibuat, ${res.total_tokens_existing} token sudah siap.`);
+    } catch (err) {
+      alert("Gagal menjalankan auto report.");
+    } finally {
+      setTriggering(false);
     }
   };
 
@@ -57,7 +89,7 @@ export const ClassReports = () => {
     try {
       const res = await teacherAPI.generateParentToken(student.id, month, year);
       const publicUrl = `${window.location.origin}${res.report_url}`;
-      const waText = `Halo Bapak/Ibu Orang Tua dari *${student.nama}*,\n\nBerikut kami sampaikan Rekap Laporan Kehadiran Bulanan (${month}/${year}):\n\n${publicUrl}\n\nSilakan klik tautan di atas untuk melihat rincian grafik absensi dan catatan wali kelas. Terima kasih.`;
+      const waText = `Halo Bapak/Ibu Orang Tua dari *${student.nama}*,\n\nBerikut kami sampaikan Rekap Laporan Kehadiran Bulanan (${getNamaBulan(month)} ${year}):\n\n${publicUrl}\n\nSilakan klik tautan di atas untuk melihat rincian grafik absensi dan catatan wali kelas. Terima kasih.`;
       
       setWaModal({
         student,
@@ -90,20 +122,25 @@ export const ClassReports = () => {
             Rekap Laporan Bulanan Kelas
           </h1>
           <p style={{ fontSize: '0.82rem', color: '#64748b' }}>
-            Ekspor Excel atau bagikan tautan laporan publik ke WhatsApp orang tua.
+            Ekspor Excel, unduh PDF formal, atau bagikan tautan laporan publik ke WhatsApp orang tua.
           </p>
         </div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <select className="skeuo-input" style={{ width: 'auto' }} value={month} onChange={(e) => setMonth(parseInt(e.target.value))}>
-            {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
-              <option key={m} value={m}>Bulan {m}</option>
+            {getOpsiBulan().map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
           <select className="skeuo-input" style={{ width: 'auto' }} value={year} onChange={(e) => setYear(parseInt(e.target.value))}>
             <option value={2025}>2025</option>
             <option value={2026}>2026</option>
           </select>
+          
+          <PressButton variant="secondary" icon={Zap} onClick={handleTriggerAutoReport} disabled={triggering}>
+            {triggering ? 'Memproses...' : '⚡ Auto Report'}
+          </PressButton>
+
           <PressButton variant="amber" icon={Download} onClick={handleExportExcel} disabled={exporting}>
             {exporting ? 'Mengunduh...' : 'Ekspor Excel'}
           </PressButton>
@@ -118,7 +155,7 @@ export const ClassReports = () => {
                 <th style={{ padding: '12px 14px' }}>Nama Siswa</th>
                 <th style={{ padding: '12px 14px' }}>NIS</th>
                 <th style={{ padding: '12px 14px' }}>No. WA Orang Tua</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Laporan Publik</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Aksi Laporan</th>
               </tr>
             </thead>
             <tbody>
@@ -128,12 +165,21 @@ export const ClassReports = () => {
                   <td style={{ padding: '12px 14px', color: '#64748b' }}>{s.nis}</td>
                   <td style={{ padding: '12px 14px', color: '#64748b' }}>{s.no_wa_ortu}</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right' }}>
-                    <button
-                      onClick={() => handleGenerateWa(s)}
-                      style={{ padding: '6px 10px', background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    >
-                      <Send size={13} /> Kirim WA
-                    </button>
+                    <div style={{ display: 'inline-flex', gap: '6px' }}>
+                      <button
+                        onClick={() => handleDownloadPdf(s)}
+                        title="Unduh Rapor PDF Siswa"
+                        style={{ padding: '6px 10px', background: '#fff1f2', border: '1px solid #fecdd3', color: '#e11d48', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <Download size={13} /> PDF
+                      </button>
+                      <button
+                        onClick={() => handleGenerateWa(s)}
+                        style={{ padding: '6px 10px', background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <Send size={13} /> Kirim WA
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -162,9 +208,12 @@ export const ClassReports = () => {
               </a>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <PressButton variant="secondary" onClick={() => setWaModal(null)}>Batal</PressButton>
-              <PressButton variant="amber" onClick={openWhatsApp}>
+              <PressButton variant="secondary" icon={Download} onClick={() => handleDownloadPdf(waModal.student)}>
+                Unduh PDF
+              </PressButton>
+              <PressButton variant="amber" icon={Send} onClick={openWhatsApp}>
                 Kirim via WhatsApp
               </PressButton>
             </div>

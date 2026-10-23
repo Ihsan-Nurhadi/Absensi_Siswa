@@ -10,6 +10,7 @@ import {
   Eye, Trash2, X, Download, ExternalLink, Calendar, FileText 
 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import { getNamaBulan, getOpsiBulan } from '../../utils/dateUtils';
 
 export const ManageStudents = () => {
   const [students, setStudents] = useState([]);
@@ -110,17 +111,50 @@ export const ManageStudents = () => {
     }
   };
 
-  const downloadPDF = () => {
-    if (!reportRef.current || !reportData) return;
-    const element = reportRef.current;
-    const opt = {
-      margin: 10,
-      filename: `Laporan_Performa_${reportData?.siswa?.nama || 'Siswa'}_${selectedMonth}_${selectedYear}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-    html2pdf().set(opt).from(element).save();
+  const handleDirectDownloadPdf = async (student) => {
+    try {
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      const blob = await teacherAPI.downloadStudentPDF(student.id, currentMonth, currentYear);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Rapor_Absensi_${student.nama.replace(/\s+/g, '_')}_${getNamaBulan(currentMonth)}_${currentYear}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Gagal mengunduh rapor PDF siswa.");
+    }
+  };
+
+  const downloadPDF = async () => {
+    if (!viewStudent) return;
+    try {
+      const blob = await teacherAPI.downloadStudentPDF(viewStudent.id, selectedMonth, selectedYear);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Rapor_Absensi_${viewStudent.nama.replace(/\s+/g, '_')}_${getNamaBulan(selectedMonth)}_${selectedYear}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      if (reportRef.current && reportData) {
+        const element = reportRef.current;
+        const opt = {
+          margin: 10,
+          filename: `Laporan_Performa_${reportData?.siswa?.nama || 'Siswa'}_${getNamaBulan(selectedMonth)}_${selectedYear}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
+      }
+    }
   };
 
   const handleSave = async (e) => {
@@ -222,6 +256,27 @@ export const ManageStudents = () => {
                         }}
                       >
                         <Eye size={13} /> Lihat
+                      </button>
+
+                      {/* Tombol Unduh PDF Cepat */}
+                      <button
+                        onClick={() => handleDirectDownloadPdf(s)}
+                        title="Unduh Rapor PDF Siswa Bulan Ini Langsung"
+                        style={{
+                          padding: '5px 9px',
+                          background: '#fff1f2',
+                          border: '1px solid #fecdd3',
+                          color: '#e11d48',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <Download size={13} /> PDF
                       </button>
 
                       {/* Tombol Edit */}
@@ -361,11 +416,8 @@ export const ManageStudents = () => {
                   value={selectedMonth}
                   onChange={(e) => handlePeriodChange(parseInt(e.target.value), selectedYear)}
                 >
-                  {[
-                    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
-                    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-                  ].map((namaBulan, i) => (
-                    <option key={i+1} value={i+1}>{namaBulan}</option>
+                  {getOpsiBulan().map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
 
@@ -466,7 +518,7 @@ export const ManageStudents = () => {
                   </div>
 
                   {/* Visual Graph Paper Chart */}
-                  <GraphPaperChart data={chartData} title={`Grafik Kehadiran (${reportData.periode.bulan}/${reportData.periode.tahun})`} />
+                  <GraphPaperChart data={chartData} title={`Grafik Kehadiran (${getNamaBulan(reportData.periode.bulan)} ${reportData.periode.tahun})`} />
 
                   {/* Teacher Feedback Notes */}
                   {reportData.feedbacks && reportData.feedbacks.length > 0 && (

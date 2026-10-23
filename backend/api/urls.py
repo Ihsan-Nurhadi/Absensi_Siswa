@@ -16,6 +16,9 @@ from api.views import (
     generate_report_token_view,
     public_report_view,
     export_class_report_view,
+    download_report_pdf_view,
+    download_student_pdf_direct_view,
+    trigger_auto_report_view,
 )
 
 router = DefaultRouter()
@@ -38,6 +41,9 @@ urlpatterns = [
     path('simulator/scan/', simulator_scan_view, name='simulator_scan'),
     path('report/token/generate/', generate_report_token_view, name='generate_report_token'),
     path('public/report/<str:token>/', public_report_view, name='public_report'),
+    path('report/pdf/<str:token>/', download_report_pdf_view, name='download_report_pdf'),
+    path('report/student-pdf/', download_student_pdf_direct_view, name='download_student_pdf_direct'),
+    path('report/auto/trigger/', trigger_auto_report_view, name='trigger_auto_report'),
     path('export/report/', export_class_report_view, name='export_report'),
 
     path('', include(router.urls)),

@@ -46,6 +46,7 @@ class KelasSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'nama', 'tahun_ajaran', 'jam_masuk', 'toleransi_terlambat_menit', 
             'batas_akhir_masuk', 'jam_pulang', 'min_interval_pulang_jam', 
+            'tanggal_auto_report', 'enable_auto_report',
             'wali_kelas', 'wali_kelas_detail', 'wali_kelas_id', 'topic_mqtt', 
             'total_siswa', 'created_at'
         ]

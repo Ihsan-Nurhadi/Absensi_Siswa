@@ -22,7 +22,9 @@ export const TeacherDashboard = () => {
     jam_masuk: '07:15', 
     toleransi_terlambat_menit: 15, 
     batas_akhir_masuk: '09:30', 
-    jam_pulang: '15:00' 
+    jam_pulang: '15:00',
+    tanggal_auto_report: 25,
+    enable_auto_report: true
   });
 
   // Feedback modal
@@ -69,7 +71,9 @@ export const TeacherDashboard = () => {
           jam_masuk: clsData.jam_masuk ? clsData.jam_masuk.slice(0, 5) : '07:15',
           toleransi_terlambat_menit: clsData.toleransi_terlambat_menit ?? 15,
           batas_akhir_masuk: clsData.batas_akhir_masuk ? clsData.batas_akhir_masuk.slice(0, 5) : '09:30',
-          jam_pulang: clsData.jam_pulang ? clsData.jam_pulang.slice(0, 5) : '15:00'
+          jam_pulang: clsData.jam_pulang ? clsData.jam_pulang.slice(0, 5) : '15:00',
+          tanggal_auto_report: clsData.tanggal_auto_report ?? 25,
+          enable_auto_report: clsData.enable_auto_report ?? true
         });
       }
 
@@ -88,7 +92,7 @@ export const TeacherDashboard = () => {
     if (!user.kelas_id) return;
     try {
       await teacherAPI.updateClassSchedule(user.kelas_id, scheduleForm);
-      alert(`Jadwal presensi berhasil disimpan! Masuk: ${scheduleForm.jam_masuk} (toleransi +${scheduleForm.toleransi_terlambat_menit}m), Batas Masuk: ${scheduleForm.batas_akhir_masuk}, Pulang: ${scheduleForm.jam_pulang}`);
+      alert(`Pengaturan kelas berhasil disimpan! Masuk: ${scheduleForm.jam_masuk} (+${scheduleForm.toleransi_terlambat_menit}m), Pulang: ${scheduleForm.jam_pulang}, Auto Report: Tgl ${scheduleForm.tanggal_auto_report} (${scheduleForm.enable_auto_report ? 'Aktif' : 'Nonaktif'})`);
       setShowScheduleModal(false);
       loadDashboardData();
     } catch (err) {
@@ -216,7 +220,7 @@ export const TeacherDashboard = () => {
             Absensi Hari Ini — {user.kelas_nama || 'Kelas Anda'}
           </h1>
           <p style={{ fontSize: '0.82rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span>Jadwal: Masuk <strong>{classInfo?.jam_masuk || '07:15'} WIB</strong> (+{classInfo?.toleransi_terlambat_menit ?? 15}m toleransi) • Batas Masuk <strong>{classInfo?.batas_akhir_masuk || '09:30'} WIB</strong> • Keluar <strong>{classInfo?.jam_pulang || '15:00'} WIB</strong></span>
+            <span>Jadwal: Masuk <strong>{classInfo?.jam_masuk || '07:15'} WIB</strong> (+{classInfo?.toleransi_terlambat_menit ?? 15}m) • Pulang <strong>{classInfo?.jam_pulang || '15:00'} WIB</strong> • Auto Report: <strong style={{ color: classInfo?.enable_auto_report ? '#0284c7' : '#94a3b8' }}>{classInfo?.enable_auto_report ? `Tiap Tgl ${classInfo?.tanggal_auto_report ?? 25}` : 'Nonaktif'}</strong></span>
           </p>
         </div>
 
@@ -394,9 +398,43 @@ export const TeacherDashboard = () => {
                 <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Scan sebelum jam ini dilindungi (anti-double scan). Scan pada/setelah jam ini dihitung sebagai <strong>Absen Pulang</strong>.</span>
               </div>
 
+              <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    📅 Jadwal Auto Report Bulanan
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, color: '#0284c7' }}>
+                    <input
+                      type="checkbox"
+                      checked={scheduleForm.enable_auto_report}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, enable_auto_report: e.target.checked })}
+                    />
+                    Aktifkan Auto Report
+                  </label>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                    Tanggal Pengiriman / Generate Bulanan (1 - 31)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    className="skeuo-input"
+                    disabled={!scheduleForm.enable_auto_report}
+                    value={scheduleForm.tanggal_auto_report}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, tanggal_auto_report: parseInt(e.target.value) || 25 })}
+                    required
+                  />
+                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                    Laporan kehadiran murid & link rapor WA akan otomatis disiapkan setiap <strong>tanggal {scheduleForm.tanggal_auto_report || 25}</strong> tiap bulannya.
+                  </span>
+                </div>
+              </div>
+
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '12px' }}>
                 <PressButton variant="secondary" type="button" onClick={() => setShowScheduleModal(false)}>Batal</PressButton>
-                <PressButton type="submit">Simpan Jadwal</PressButton>
+                <PressButton type="submit">Simpan Pengaturan</PressButton>
               </div>
             </form>
           </SkeuoCard>

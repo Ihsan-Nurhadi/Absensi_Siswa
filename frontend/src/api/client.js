@@ -80,10 +80,21 @@ export const teacherAPI = {
     });
     return response.data;
   },
+
+  downloadStudentPDF: async (siswa_id, bulan, tahun) => {
+    const response = await client.get('/report/student-pdf/', {
+      params: { siswa_id, bulan, tahun },
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  triggerAutoReport: async (kelas_id, force = true) => (await client.post('/report/auto/trigger/', { kelas_id, force })).data,
 };
 
 export const publicAPI = {
   getParentReport: async (token) => (await client.get(`/public/report/${token}/`)).data,
+  getReportPdfUrl: (token) => `/api/report/pdf/${token}/`,
 };
 
 export const simulatorAPI = {

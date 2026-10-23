@@ -8,6 +8,7 @@ import GraphPaperChart from '../components/common/GraphPaperChart';
 import PressButton from '../components/common/PressButton';
 import { Download, School, Calendar, Award, FileText, CheckCircle2, LogIn, LogOut } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import { getNamaBulan } from '../utils/dateUtils';
 
 export const PublicReportPage = () => {
   const { token } = useParams();
@@ -33,15 +34,19 @@ export const PublicReportPage = () => {
   };
 
   const downloadPDF = () => {
-    const element = reportRef.current;
-    const opt = {
-      margin: 10,
-      filename: `Laporan_Absensi_${report?.siswa?.nama || 'Siswa'}_${report?.periode?.bulan}_${report?.periode?.tahun}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-    html2pdf().set(opt).from(element).save();
+    if (token) {
+      window.open(publicAPI.getReportPdfUrl(token), '_blank');
+    } else if (reportRef.current) {
+      const element = reportRef.current;
+      const opt = {
+        margin: 10,
+        filename: `Laporan_Absensi_${report?.siswa?.nama || 'Siswa'}_${getNamaBulan(report?.periode?.bulan)}_${report?.periode?.tahun}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      html2pdf().set(opt).from(element).save();
+    }
   };
 
   if (loading) {
@@ -94,7 +99,7 @@ export const PublicReportPage = () => {
             />
             <div>
               <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                REKAPITULASI KEHADIRAN BULANAN
+                REKAPITULASI KEHADIRAN BULANAN — {getNamaBulan(report.periode.bulan).toUpperCase()} {report.periode.tahun}
               </span>
               <h2 style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', margin: '2px 0' }}>
                 {report.siswa.nama}
@@ -135,7 +140,7 @@ export const PublicReportPage = () => {
         </div>
 
         {/* Visual Graph Paper Chart */}
-        <GraphPaperChart data={chartData} title={`Grafik Kehadiran (${report.periode.bulan}/${report.periode.tahun})`} />
+        <GraphPaperChart data={chartData} title={`Grafik Kehadiran (${getNamaBulan(report.periode.bulan)} ${report.periode.tahun})`} />
 
         {/* Teacher Sticky Note Feedback if available */}
         {report.feedbacks && report.feedbacks.length > 0 && (

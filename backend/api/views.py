@@ -17,6 +17,20 @@ from api.serializers import (
 )
 from api.mqtt_service import mqtt_service
 
+NAMA_BULAN_ID = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+]
+
+def get_nama_bulan(bulan_num):
+    try:
+        b = int(bulan_num)
+        if 1 <= b <= 12:
+            return NAMA_BULAN_ID[b - 1]
+    except (ValueError, TypeError):
+        pass
+    return f"Bulan {bulan_num}"
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
@@ -512,7 +526,8 @@ def generate_report_token_view(request):
     )
 
     report_url = f"/report/{lap_token.token}"
-    wa_message = f"Halo Bpk/Ibu Orang Tua dari {siswa.nama}, berikut laporan kehadiran bulanan ({bulan}/{tahun}):\n\n{request.build_absolute_uri('/')[:-1]}{report_url}\n\nTerima kasih."
+    nama_bln = get_nama_bulan(bulan)
+    wa_message = f"Halo Bapak/Ibu Orang Tua dari *{siswa.nama}*,\n\nBerikut kami sampaikan Rekap Laporan Kehadiran Bulanan Periode *{nama_bln} {tahun}*:\n\n{request.build_absolute_uri('/')[:-1]}{report_url}\n\nSilakan klik tautan di atas untuk melihat rincian grafik absensi dan catatan wali kelas. Terima kasih."
 
     return Response({
         'token': lap_token.token,
@@ -568,6 +583,7 @@ def public_report_view(request, token):
         },
         'periode': {
             'bulan': bulan,
+            'nama_bulan': get_nama_bulan(bulan),
             'tahun': tahun,
         },
         'wali_kelas_nama': wali_kelas_nama,
@@ -607,8 +623,9 @@ def export_class_report_view(request):
         ws = wb.active
         ws.title = f"Rekap {kelas.nama}"
 
+        nama_bln = get_nama_bulan(bulan)
         ws.append([f"REKAPITULASI KEHADIRAN SISWA - {kelas.nama}"])
-        ws.append([f"Periode: Bulan {bulan} / Tahun {tahun}"])
+        ws.append([f"Periode: {nama_bln} {tahun}"])
         ws.append([])
 
         headers = ["No", "NIS", "Nama Siswa", "Hadir", "Terlambat", "Izin", "Sakit", "Alpa", "Lupa Absen Pulang", "Persentase Hadir"]
@@ -631,8 +648,84 @@ def export_class_report_view(request):
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        response['Content-Disposition'] = f'attachment; filename="Rekap_Absensi_{kelas.nama}_{bulan}_{tahun}.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="Rekap_Absensi_{kelas.nama}_{nama_bln}_{tahun}.xlsx"'
         wb.save(response)
         return response
     except Exception as e:
         return Response({'error': f'Gagal mengekspor laporan: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def download_report_pdf_view(request, token):
+    """Generates and serves downloadable formal PDF report for a given report token."""
+    try:
+        lap_token = LaporanToken.objects.select_related('siswa', 'siswa__kelas', 'siswa__kelas__wali_kelas').get(token=token)
+    except LaporanToken.DoesNotExist:
+        return Response({'error': 'Token laporan tidak valid atau telah kadaluarsa.'}, status=status.HTTP_404_NOT_FOUND)
+
+    siswa = lap_token.siswa
+    bulan = lap_token.bulan
+    tahun = lap_token.tahun
+
+    absensi_qs = Absensi.objects.filter(siswa=siswa, tanggal__month=bulan, tanggal__year=tahun).order_by('tanggal')
+    feedbacks = Feedback.objects.filter(siswa=siswa).order_by('-tanggal')
+    wali_kelas_nama = lap_token.siswa.kelas.wali_kelas.get_full_name() if (lap_token.siswa.kelas and lap_token.siswa.kelas.wali_kelas) else 'Wali Kelas'
+
+    import io
+    from api.pdf_generator import build_student_report_pdf
+    buffer = io.BytesIO()
+    build_student_report_pdf(buffer, siswa, bulan, tahun, absensi_qs, feedbacks, wali_kelas_nama)
+    buffer.seek(0)
+
+    nama_bln = get_nama_bulan(bulan)
+    safe_name = siswa.nama.replace(" ", "_")
+    filename = f"Rapor_Absensi_{safe_name}_{nama_bln}_{tahun}.pdf"
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def download_student_pdf_direct_view(request):
+    """Direct PDF download for authenticated teachers/admins using siswa_id, bulan, tahun."""
+    siswa_id = request.query_params.get('siswa_id')
+    local_now = timezone.localtime(timezone.now())
+    bulan = request.query_params.get('bulan', local_now.month)
+    tahun = request.query_params.get('tahun', local_now.year)
+
+    if not siswa_id:
+        return Response({'error': 'siswa_id wajib diisi.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        siswa = Siswa.objects.select_related('kelas', 'kelas__wali_kelas').get(id=siswa_id)
+    except Siswa.DoesNotExist:
+        return Response({'error': 'Siswa tidak ditemukan.'}, status=status.HTTP_404_NOT_FOUND)
+
+    absensi_qs = Absensi.objects.filter(siswa=siswa, tanggal__month=bulan, tanggal__year=tahun).order_by('tanggal')
+    feedbacks = Feedback.objects.filter(siswa=siswa).order_by('-tanggal')
+    wali_kelas_nama = siswa.kelas.wali_kelas.get_full_name() if (siswa.kelas and siswa.kelas.wali_kelas) else 'Wali Kelas'
+
+    import io
+    from api.pdf_generator import build_student_report_pdf
+    buffer = io.BytesIO()
+    build_student_report_pdf(buffer, siswa, int(bulan), int(tahun), absensi_qs, feedbacks, wali_kelas_nama)
+    buffer.seek(0)
+
+    nama_bln = get_nama_bulan(bulan)
+    safe_name = siswa.nama.replace(" ", "_")
+    filename = f"Rapor_Absensi_{safe_name}_{nama_bln}_{tahun}.pdf"
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def trigger_auto_report_view(request):
+    """Manually triggers auto report generation for class or all classes."""
+    kelas_id = request.data.get('kelas_id')
+    force = request.data.get('force', True)
+    
+    from api.report_service import process_monthly_auto_reports
+    today = timezone.localtime(timezone.now()).date()
+    result = process_monthly_auto_reports(target_date=today, kelas_id=kelas_id, force=force)
+    return Response(result)

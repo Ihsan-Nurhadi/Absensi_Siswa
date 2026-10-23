@@ -11,6 +11,7 @@ import {
   Download, ExternalLink, MessageSquare, Phone, CheckCircle2, 
   AlertTriangle, LogIn, LogOut, FileText 
 } from 'lucide-react';
+import { getNamaBulan, getOpsiBulan } from '../../utils/dateUtils';
 
 export const AdminClassDetailPage = () => {
   const { id } = useParams();
@@ -46,7 +47,7 @@ export const AdminClassDetailPage = () => {
       const url = window.URL.createObjectURL(new Blob([blob]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Rekap_Absensi_${data?.kelas?.nama || 'Kelas'}_Bulan_${month}_${year}.xlsx`);
+      link.setAttribute('download', `Rekap_Absensi_${data?.kelas?.nama || 'Kelas'}_${getNamaBulan(month)}_${year}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
@@ -93,7 +94,7 @@ export const AdminClassDetailPage = () => {
 
   const chartData = [
     {
-      name: `Bulan ${data.periode.bulan}`,
+      name: getNamaBulan(data.periode.bulan),
       Hadir: data.monthly.hadir,
       Terlambat: data.monthly.terlambat,
       Izin: data.monthly.izin + data.monthly.sakit,
@@ -136,8 +137,8 @@ export const AdminClassDetailPage = () => {
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <select className="skeuo-input" style={{ width: 'auto' }} value={month} onChange={(e) => setMonth(parseInt(e.target.value))}>
-            {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
-              <option key={m} value={m}>Bulan {m}</option>
+            {getOpsiBulan().map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
           <select className="skeuo-input" style={{ width: 'auto' }} value={year} onChange={(e) => setYear(parseInt(e.target.value))}>
@@ -294,7 +295,7 @@ export const AdminClassDetailPage = () => {
         </SkeuoCard>
       </div>
 
-      <GraphPaperChart data={chartData} title={`Grafik Kehadiran ${data.kelas.nama} (${data.periode.bulan}/${data.periode.tahun})`} />
+      <GraphPaperChart data={chartData} title={`Grafik Kehadiran ${data.kelas.nama} (${getNamaBulan(data.periode.bulan)} ${data.periode.tahun})`} />
 
       {/* Student List & Card Mapping Table */}
       <SkeuoCard style={{ padding: '0', overflow: 'hidden' }}>

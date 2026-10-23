@@ -5,6 +5,7 @@ import PressButton from '../../components/common/PressButton';
 import GraphPaperChart from '../../components/common/GraphPaperChart';
 import StampBadge from '../../components/common/StampBadge';
 import { Award, AlertTriangle, TrendingUp, Users, Calendar, CheckCircle2, LogOut } from 'lucide-react';
+import { getNamaBulan, getOpsiBulan } from '../../utils/dateUtils';
 
 export const TeacherPerformancePage = () => {
   const [data, setData] = useState(null);
@@ -40,7 +41,7 @@ export const TeacherPerformancePage = () => {
 
   const chartData = [
     {
-      name: `Bulan ${data.periode.bulan}`,
+      name: getNamaBulan(data.periode.bulan),
       Hadir: data.metrics.hadir,
       Terlambat: data.metrics.terlambat,
       Izin: data.metrics.izin + data.metrics.sakit,
@@ -63,8 +64,8 @@ export const TeacherPerformancePage = () => {
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <select className="skeuo-input" style={{ width: 'auto' }} value={month} onChange={(e) => setMonth(parseInt(e.target.value))}>
-            {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
-              <option key={m} value={m}>Bulan {m}</option>
+            {getOpsiBulan().map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
           <select className="skeuo-input" style={{ width: 'auto' }} value={year} onChange={(e) => setYear(parseInt(e.target.value))}>
@@ -127,7 +128,7 @@ export const TeacherPerformancePage = () => {
       </div>
 
       {/* Graph Paper Chart */}
-      <GraphPaperChart data={chartData} title={`Visualisasi Performa Kehadiran (${data.periode.bulan}/${data.periode.tahun})`} />
+      <GraphPaperChart data={chartData} title={`Visualisasi Performa Kehadiran (${getNamaBulan(data.periode.bulan)} ${data.periode.tahun})`} />
 
       {/* Leaderboard & Attention Grids */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
