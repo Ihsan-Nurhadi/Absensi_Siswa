@@ -11,6 +11,8 @@ export const MqttSettingsPage = () => {
     port: 1883,
     username: '',
     password: '',
+    topic_subscribe: 'rfid/ws/log',
+    topic_publish: 'rfid/ws/display',
     is_active: true,
   });
   const [mqttStatus, setMqttStatus] = useState(null);
@@ -30,6 +32,8 @@ export const MqttSettingsPage = () => {
           port: data.config.port || 1883,
           username: data.config.username || '',
           password: data.config.password || '',
+          topic_subscribe: data.config.topic_subscribe ?? 'rfid/ws/log',
+          topic_publish: data.config.topic_publish ?? 'rfid/ws/display',
           is_active: data.config.is_active ?? true,
         });
       }
@@ -145,6 +149,52 @@ export const MqttSettingsPage = () => {
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="Kosongkan jika tanpa password"
             />
+          </div>
+
+          <div style={{
+            padding: '12px',
+            background: '#f8fafc',
+            borderRadius: '8px',
+            border: '1px solid #cbd5e1',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            marginTop: '4px'
+          }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 900, color: '#0f172a' }}>
+              Pengaturan Topik RFID & Layar ESP32
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#475569', marginBottom: '4px' }}>
+                Topik Input Pembacaan RFID (Subscribe)
+              </label>
+              <input
+                type="text"
+                className="skeuo-input"
+                value={form.topic_subscribe}
+                onChange={(e) => setForm({ ...form, topic_subscribe: e.target.value })}
+                placeholder="Contoh: rfid/ws/log"
+              />
+              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                Topik tempat reader mengirim UID kartu. Bisa dipisah koma jika lebih dari satu.
+              </span>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#475569', marginBottom: '4px' }}>
+                Topik Output ke Layar ESP32 (Publish)
+              </label>
+              <input
+                type="text"
+                className="skeuo-input"
+                value={form.topic_publish}
+                onChange={(e) => setForm({ ...form, topic_publish: e.target.value })}
+                placeholder="Contoh: rfid/ws/display"
+              />
+              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                Format plaintext yang dikirim: <code>nama,status-label</code> (contoh: <code>Budi Santoso,SUKSES</code>, <code>Budi Santoso,TERLAMBAT</code>, <code>Budi Santoso,ABSEN PULANG</code>, <code>Budi Santoso,SUDAH ABSEN</code>).
+              </span>
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>

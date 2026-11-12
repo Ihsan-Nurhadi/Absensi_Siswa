@@ -21,6 +21,18 @@ class MQTTConfig(models.Model):
     port = models.IntegerField(default=1883)
     username = models.CharField(max_length=100, blank=True, null=True)
     password = models.CharField(max_length=100, blank=True, null=True)
+    topic_subscribe = models.CharField(
+        max_length=255,
+        blank=True,
+        default='rfid/ws/log',
+        help_text="Topik MQTT input pembacaan UID RFID (Subscribe)"
+    )
+    topic_publish = models.CharField(
+        max_length=255,
+        blank=True,
+        default='rfid/ws/display',
+        help_text="Topik MQTT output ke layar ESP32 (Publish)"
+    )
     is_active = models.BooleanField(default=True)
     last_connected = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -21,7 +21,24 @@ class MQTTService:
             cls._instance.thread = None
             cls._instance.is_connected = False
             cls._instance.last_status = "Disconnected"
+            cls._instance.topic_publish = "rfid/ws/display"
         return cls._instance
+
+    def publish_display_payload(self, nama, status_label):
+        """Publishes plaintext 'nama,status-label' to the configured ESP32 display topic."""
+        if not self.client or not self.is_connected:
+            return
+        topic = (self.topic_publish or "").strip()
+        if not topic:
+            return
+        safe_nama = str(nama or "Tidak Terdaftar").replace(",", " ").strip()
+        safe_status = str(status_label or "").replace(",", " ").strip()
+        payload = f"{safe_nama},{safe_status}"
+        try:
+            self.client.publish(topic, payload)
+            print(f"[MQTT] Published display payload to {topic}: {payload}")
+        except Exception as err:
+            print(f"[MQTT] Failed to publish display payload: {err}")
 
     def start(self):
         """Starts the MQTT listener thread if paho.mqtt is available."""
@@ -60,13 +77,23 @@ class MQTTService:
                 if config.username and config.username.strip():
                     self.client.username_pw_set(config.username.strip(), config.password or '')
 
+                self.topic_publish = (config.topic_publish or '').strip()
+
                 def on_connect(client, userdata, flags, rc, properties=None):
                     rc_val = getattr(rc, 'value', rc)
                     if rc_val == 0:
                         self.is_connected = True
                         self.last_status = "Connected"
                         print(f"[MQTT] Connected successfully to {config.host}:{config.port} (Client ID: {client_unique_id})")
-                        
+
+                        # Subscribe to global input topic(s) configured in Admin MQTT Settings
+                        if config.topic_subscribe:
+                            for raw_t in config.topic_subscribe.split(','):
+                                t = raw_t.strip()
+                                if t:
+                                    client.subscribe(t)
+                                    print(f"[MQTT] Subscribed to input topic: {t}")
+
                         # Subscribe to all active class topics
                         classes = Kelas.objects.all()
                         for k in classes:
@@ -165,6 +192,7 @@ class MQTTService:
 
             if not siswa:
                 print(f"[Attendance Engine] No student found with card tag: '{raw_tag}'")
+                self.publish_display_payload("Tidak Terdaftar", "TIDAK TERDAFTAR")
                 return None, f"Kartu siswa ({raw_tag}) tidak terdaftar di sistem."
 
             # Use local Asia/Jakarta date & time (GMT+7)
@@ -224,18 +252,23 @@ class MQTTService:
                 # First scan of the day -> ENTRY (Absen Masuk)
                 if absensi.status == Absensi.StatusChoices.HADIR:
                     status_text = "Tepat Waktu (HADIR)"
+                    display_status = "SUKSES"
                 elif absensi.status == Absensi.StatusChoices.TERLAMBAT:
                     status_text = f"TERLAMBAT ({catatan_awal})"
+                    display_status = "TERLAMBAT"
                 else:
                     status_text = f"ALPA ({catatan_awal})"
+                    display_status = "LEWAT BATAS"
 
                 msg = f"Absen Masuk dicatat ({status_text}) pada jam {now_time.strftime('%H:%M')} WIB."
                 print(f"[Attendance Engine] ENTRY: {siswa.nama} ({absensi.status}) at {now_time.strftime('%H:%M:%S')} WIB - {catatan_awal}")
+                self.publish_display_payload(siswa.nama, display_status)
                 return absensi, msg
 
             # If record already exists for today:
             if force_type == 'PULANG' or absensi.waktu_pulang:
                 if absensi.waktu_pulang and not force_type:
+                    self.publish_display_payload(siswa.nama, "SUDAH ABSEN")
                     return absensi, f"Siswa {siswa.nama} sudah melakukan Absen Masuk ({absensi.waktu_masuk.strftime('%H:%M')}) dan Absen Pulang ({absensi.waktu_pulang.strftime('%H:%M')}) hari ini."
 
             # Calculate time difference between entry and current scan
@@ -257,16 +290,19 @@ class MQTTService:
                     absensi.save()
                     msg = f"Absen Pulang berhasil dicatat untuk {siswa.nama} pada jam {now_time.strftime('%H:%M')} WIB. Sampai jumpa!"
                     print(f"[Attendance Engine] EXIT: {siswa.nama} at {now_time.strftime('%H:%M:%S')} WIB")
+                    self.publish_display_payload(siswa.nama, "ABSEN PULANG")
                     return absensi, msg
                 else:
                     # Intermediate scan before Jam Keluar -> Double / Burst Scan Protection Triggered!
                     msg = f"Siswa {siswa.nama} sudah Absen Masuk pada jam {absensi.waktu_masuk.strftime('%H:%M')} WIB. Belum memasuki jam keluar/pulang ({jam_pulang.strftime('%H:%M')} WIB)."
                     print(f"[Attendance Engine] DOUBLE/BURST SCAN REJECTED: {siswa.nama} scanned at {now_time.strftime('%H:%M:%S')} WIB (Entry was {absensi.waktu_masuk.strftime('%H:%M:%S')}, Departure target: {jam_pulang.strftime('%H:%M:%S')})")
+                    self.publish_display_payload(siswa.nama, "SUDAH ABSEN")
                     return absensi, msg
 
             # Fallback if entry was not recorded
             absensi.waktu_masuk = now_time
             absensi.save()
+            self.publish_display_payload(siswa.nama, "SUKSES")
             return absensi, f"Absen Masuk berhasil dicatat pada jam {now_time.strftime('%H:%M')} WIB."
 
         except Exception as e:
