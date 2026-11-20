@@ -1,9 +1,12 @@
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <PubSubClient.h>
 #include <LittleFS.h>
+#include <MD5Builder.h>
+#include <mbedtls/base64.h>
 #include <time.h>
 
 // ====== Opsi ======
@@ -11,23 +14,24 @@
 #define TAP_PIN   0        // tombol BOOT (GPIO0) sebagai pengganti sentuhan, -1 = nonaktif
 
 // ====== Konfigurasi WiFi ======
-const char* WIFI_SSID     = "sonson";
-const char* WIFI_PASSWORD = "sonson123";
+const char* WIFI_SSID     = "NMSIOTPULAUBAYU";
+const char* WIFI_PASSWORD = "N@y@k@Pr4t4m4!<>";
 
 // ====== Konfigurasi MQTT ======
-const char* MQTT_SERVER = "emqx.";               // isi dengan host lengkap
-const uint16_t MQTT_PORT = 1883;
-const char* MQTT_USER   = "nyk_wssss";
-const char* MQTT_PASS   = "wsaaa";
+const char* MQTT_SERVER = "emqx.nayakanms.com";               // isi dengan host lengkap
+const uint16_t MQTT_PORT = 1884;
+const char* MQTT_USER   = "nyk_ws";
+const char* MQTT_PASS   = "ws";
 const char* MQTT_TOPIC  = "rfid/ws/display";     // format payload: NAMA,STATUS
 const char* MQTT_ACK_TOPIC = "rfid/ws/ack";      // konfirmasi: NAMA,STATUS,JAM
 
-// ====== Konfigurasi Kamera Tiandy & Upload VPS ======
+// ====== Konfigurasi Kamera RTSP (Tiandy / Tapo) & Upload VPS ======
 const char* CAM_HOST        = "192.168.1.105";
-const uint16_t CAM_PORT     = 3002;
+const uint16_t CAM_PORT     = 554;               // Port RTSP standar (554)
+const char* CAM_RTSP_PATH   = "/1/2";            // Tiandy sub-stream: "/1/2" | Tapo C500 sub-stream: "/stream2"
 const char* CAM_USER        = "admin";
 const char* CAM_PASS        = "admin1234";
-const char* VPS_UPLOAD_URL  = "http://110.232.92.134:3004/api/attendance/snapshot-upload/";
+const char* VPS_UPLOAD_URL  = "https://110.232.92.134:3004/api/attendance/snapshot-upload/";
 const char* DEVICE_API_KEY  = "absensi-device-secret-2026";
 
 // ====== Waktu (NTP, WIB = UTC+7) ======
@@ -761,7 +765,49 @@ struct SnapshotTaskParam {
   String status;
 };
 
-// Ambil snapshot dari kamera Tiandy (coba beberapa path CGI umum) lalu POST multipart ke VPS
+static String md5Hex(const String& s) {
+  MD5Builder md5;
+  md5.begin();
+  md5.add(s);
+  md5.calculate();
+  return md5.toString();
+}
+
+static String extractAttr(const String& hdr, const String& key) {
+  int idx = hdr.indexOf(key + "=\"");
+  if (idx < 0) return "";
+  int start = idx + key.length() + 2;
+  int end = hdr.indexOf('"', start);
+  if (end < 0) return "";
+  return hdr.substring(start, end);
+}
+
+static String base64EncodeSimple(const String& in) {
+  size_t outLen = 0;
+  uint8_t out[128];
+  if (mbedtls_base64_encode(out, sizeof(out) - 1, &outLen, (const uint8_t*)in.c_str(), in.length()) == 0) {
+    out[outLen] = 0;
+    return String((char*)out);
+  }
+  return "";
+}
+
+static String buildRtspAuthHeader(const String& wwwAuth, const String& method, const String& uri) {
+  if (wwwAuth.length() == 0) return "";
+  if (wwwAuth.indexOf("Digest") >= 0) {
+    String realm = extractAttr(wwwAuth, "realm");
+    String nonce = extractAttr(wwwAuth, "nonce");
+    String ha1 = md5Hex(String(CAM_USER) + ":" + realm + ":" + String(CAM_PASS));
+    String ha2 = md5Hex(method + ":" + uri);
+    String resp = md5Hex(ha1 + ":" + nonce + ":" + ha2);
+    return "Authorization: Digest username=\"" + String(CAM_USER) + "\", realm=\"" + realm +
+           "\", nonce=\"" + nonce + "\", uri=\"" + uri + "\", response=\"" + resp + "\"\r\n";
+  }
+  String b64 = base64EncodeSimple(String(CAM_USER) + ":" + String(CAM_PASS));
+  return "Authorization: Basic " + b64 + "\r\n";
+}
+
+// Ambil 1 Keyframe H.264 (SPS + PPS + IDR Frame) dari RTSP kamera lokal lalu POST ke VPS
 void captureAndUploadTask(void* pvParameters) {
   SnapshotTaskParam* param = (SnapshotTaskParam*)pvParameters;
   String nama = param->nama;
@@ -769,87 +815,315 @@ void captureAndUploadTask(void* pvParameters) {
   delete param;
 
   if (WiFi.status() == WL_CONNECTED) {
-    const char* paths[] = {
-      "/webcapture.jpg?command=snap&channel=1",
-      "/cgi-bin/snapshot.cgi?user=admin&pwd=admin1234&chn=1",
-      "/snapshot.jpg"
-    };
+    WiFiClient rtspClient;
+    rtspClient.setTimeout(5);
+    Serial.printf("[RTSP] Menghubungkan ke %s:%d%s ...\n", CAM_HOST, CAM_PORT, CAM_RTSP_PATH);
 
-    uint8_t* jpgBuf = nullptr;
-    int jpgLen = 0;
+    if (rtspClient.connect(CAM_HOST, CAM_PORT)) {
+      String baseUrl = String("rtsp://") + CAM_HOST + ":" + String(CAM_PORT) + String(CAM_RTSP_PATH);
+      String wwwAuth = "";
 
-    for (int i = 0; i < 3; i++) {
-      HTTPClient camHttp;
-      String url = String("http://") + CAM_HOST + ":" + String(CAM_PORT) + paths[i];
-      camHttp.begin(url);
-      camHttp.setAuthorization(CAM_USER, CAM_PASS);
-      camHttp.setTimeout(4000);
-      int code = camHttp.GET();
-      if (code == HTTP_CODE_OK) {
-        int len = camHttp.getSize();
-        if (len > 0 && len <= 180000) {
-          jpgBuf = (uint8_t*)malloc(len);
-          if (jpgBuf) {
-            WiFiClient* stream = camHttp.getStreamPtr();
-            int readBytes = 0;
-            unsigned long startWait = millis();
-            while (readBytes < len && millis() - startWait < 4000) {
-              int avail = stream->available();
-              if (avail > 0) {
-                int r = stream->readBytes(jpgBuf + readBytes, min(avail, len - readBytes));
-                readBytes += r;
-              } else {
-                delay(5);
-              }
-            }
-            if (readBytes == len) {
-              jpgLen = len;
-              Serial.printf("[CAM] Snapshot OK (%s): %d bytes\n", paths[i], jpgLen);
-              camHttp.end();
-              break;
+      auto sendRtspCmd = [&](const String& cmd, const String& url, int cseq, const String& extraHeaders = "") -> String {
+        String req = cmd + " " + url + " RTSP/1.0\r\n";
+        req += "CSeq: " + String(cseq) + "\r\n";
+        req += "User-Agent: ESP32-RTSP-Client\r\n";
+        req += buildRtspAuthHeader(wwwAuth, cmd, url);
+        req += extraHeaders;
+        req += "\r\n";
+        rtspClient.print(req);
+
+        String response = "";
+        unsigned long t0 = millis();
+        while (millis() - t0 < 5000) {
+          while (rtspClient.available()) {
+            response += (char)rtspClient.read();
+          }
+          int hdrEnd = response.indexOf("\r\n\r\n");
+          if (hdrEnd >= 0) {
+            // Jika ada Content-Length (SDP), tunggu body selesai terbaca
+            int clIdx = response.indexOf("Content-Length:");
+            if (clIdx < 0) clIdx = response.indexOf("Content-length:");
+            if (clIdx >= 0) {
+              int clEnd = response.indexOf("\r\n", clIdx);
+              int contentLen = response.substring(clIdx + 15, clEnd).toInt();
+              if ((int)response.length() >= hdrEnd + 4 + contentLen) break;
             } else {
-              free(jpgBuf);
-              jpgBuf = nullptr;
+              break;
             }
           }
+          delay(5);
+        }
+        return response;
+      };
+
+      int cseq = 1;
+      sendRtspCmd("OPTIONS", baseUrl, cseq++);
+
+      String descRes = sendRtspCmd("DESCRIBE", baseUrl, cseq++, "Accept: application/sdp\r\n");
+      if (descRes.indexOf("401 Unauthorized") >= 0) {
+        int waIdx = descRes.indexOf("WWW-Authenticate:");
+        if (waIdx >= 0) {
+          int waEnd = descRes.indexOf("\r\n", waIdx);
+          wwwAuth = descRes.substring(waIdx + 17, waEnd);
+          wwwAuth.trim();
+          descRes = sendRtspCmd("DESCRIBE", baseUrl, cseq++, "Accept: application/sdp\r\n");
+        }
+      }
+
+      if (descRes.indexOf("200 OK") >= 0) {
+        // Parse video track control URL dari SDP
+        String trackUrl = baseUrl + "/trackID=1";
+        int mVid = descRes.indexOf("m=video");
+        if (mVid >= 0) {
+          int ctrlIdx = descRes.indexOf("a=control:", mVid);
+          if (ctrlIdx >= 0) {
+            int ctrlEnd = descRes.indexOf("\r\n", ctrlIdx);
+            String ctrl = descRes.substring(ctrlIdx + 10, ctrlEnd);
+            ctrl.trim();
+            if (ctrl.startsWith("rtsp://")) trackUrl = ctrl;
+            else if (ctrl.startsWith("/")) trackUrl = String("rtsp://") + CAM_HOST + ":" + String(CAM_PORT) + ctrl;
+            else trackUrl = baseUrl + "/" + ctrl;
+          }
+        }
+
+        // Alokasi buffer frame H.264 Annex-B (prioritas PSRAM, fallback RAM internal 90 KB)
+        size_t maxFrameSize = 140 * 1024;
+        uint8_t* frameBuf = (uint8_t*)ps_malloc(maxFrameSize);
+        if (!frameBuf) {
+          maxFrameSize = 90 * 1024;
+          frameBuf = (uint8_t*)malloc(maxFrameSize);
+        }
+
+        if (frameBuf) {
+          size_t frameLen = 0;
+
+          auto appendStartCode = [&]() {
+            if (frameLen + 4 < maxFrameSize) {
+              frameBuf[frameLen++] = 0x00;
+              frameBuf[frameLen++] = 0x00;
+              frameBuf[frameLen++] = 0x00;
+              frameBuf[frameLen++] = 0x01;
+            }
+          };
+
+          // Ekstrak SPS & PPS dari SDP (sprop-parameter-sets) jika tersedia
+          bool hasSpsPps = false;
+          int spropIdx = descRes.indexOf("sprop-parameter-sets=");
+          if (spropIdx >= 0) {
+            int sStart = spropIdx + 21;
+            int sEnd = descRes.indexOf("\r\n", sStart);
+            int semi = descRes.indexOf(';', sStart);
+            if (semi > 0 && (sEnd < 0 || semi < sEnd)) sEnd = semi;
+            String sprop = descRes.substring(sStart, sEnd);
+            sprop.trim();
+            int comma = sprop.indexOf(',');
+            String parts[2] = { comma >= 0 ? sprop.substring(0, comma) : sprop,
+                                comma >= 0 ? sprop.substring(comma + 1) : "" };
+            for (int p = 0; p < 2; p++) {
+              if (parts[p].length() > 0) {
+                size_t decLen = 0;
+                uint8_t dec[128];
+                if (mbedtls_base64_decode(dec, sizeof(dec), &decLen, (const uint8_t*)parts[p].c_str(), parts[p].length()) == 0 && decLen > 0) {
+                  if (frameLen + 4 + decLen < maxFrameSize) {
+                    appendStartCode();
+                    memcpy(frameBuf + frameLen, dec, decLen);
+                    frameLen += decLen;
+                    hasSpsPps = true;
+                  }
+                }
+              }
+            }
+          }
+
+          String setupRes = sendRtspCmd("SETUP", trackUrl, cseq++, "Transport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n");
+          int sessIdx = setupRes.indexOf("Session:");
+          if (setupRes.indexOf("200 OK") >= 0 && sessIdx >= 0) {
+            int sessEnd = setupRes.indexOf("\r\n", sessIdx);
+            String sessionId = setupRes.substring(sessIdx + 8, sessEnd);
+            int semi = sessionId.indexOf(';');
+            if (semi > 0) sessionId = sessionId.substring(0, semi);
+            sessionId.trim();
+
+            String playRes = sendRtspCmd("PLAY", baseUrl, cseq++, "Session: " + sessionId + "\r\nRange: npt=0.000-\r\n");
+            if (playRes.indexOf("200 OK") >= 0) {
+              Serial.println("[RTSP] Stream aktif, menunggu IDR Keyframe H.264...");
+              bool inIdr = false;
+              bool frameCaptured = false;
+              unsigned long streamT0 = millis();
+              size_t spsBaseline = frameLen;
+
+              while (rtspClient.connected() && (millis() - streamT0 < 8000)) {
+                if (rtspClient.available() < 4) { delay(1); continue; }
+                if (rtspClient.read() != '$') continue;
+
+                uint8_t ch = rtspClient.read();
+                uint16_t pktLen = ((uint16_t)rtspClient.read() << 8) | rtspClient.read();
+                if (pktLen == 0 || pktLen > 16000) continue;
+
+                // Tunggu payload packetLen masuk
+                unsigned long w0 = millis();
+                while (rtspClient.available() < pktLen && millis() - w0 < 2000) delay(1);
+                if (rtspClient.available() < pktLen) break;
+
+                if (ch != 0 || pktLen <= 12) {
+                  for (uint16_t i = 0; i < pktLen; i++) rtspClient.read();
+                  continue;
+                }
+
+                uint8_t* pkt = (uint8_t*)malloc(pktLen);
+                if (!pkt) break;
+                rtspClient.readBytes(pkt, pktLen);
+
+                bool markerBit = (pkt[1] & 0x80) != 0;
+                uint8_t* rtpPayload = pkt + 12;
+                int payloadLen = pktLen - 12;
+
+                // Lewati RTP CSRC / header extension jika ada
+                int csrcCount = pkt[0] & 0x0F;
+                int extOffset = csrcCount * 4;
+                if (pkt[0] & 0x10 && payloadLen > extOffset + 4) {
+                  int extWords = ((uint16_t)rtpPayload[extOffset + 2] << 8) | rtpPayload[extOffset + 3];
+                  extOffset += 4 + extWords * 4;
+                }
+                if (extOffset > 0 && extOffset < payloadLen) {
+                  rtpPayload += extOffset;
+                  payloadLen -= extOffset;
+                }
+
+                if (payloadLen > 2) {
+                  uint8_t nalHeader = rtpPayload[0];
+                  uint8_t nalType = nalHeader & 0x1F;
+
+                  if (nalType >= 1 && nalType <= 23) {
+                    // Single NAL Unit
+                    if (nalType == 7 || nalType == 8) {
+                      if (!hasSpsPps && frameLen + 4 + payloadLen < maxFrameSize) {
+                        appendStartCode();
+                        memcpy(frameBuf + frameLen, rtpPayload, payloadLen);
+                        frameLen += payloadLen;
+                        spsBaseline = frameLen;
+                      }
+                    } else if (nalType == 5) {
+                      inIdr = true;
+                      if (frameLen + 4 + payloadLen < maxFrameSize) {
+                        appendStartCode();
+                        memcpy(frameBuf + frameLen, rtpPayload, payloadLen);
+                        frameLen += payloadLen;
+                      }
+                      if (markerBit) {
+                        frameCaptured = true;
+                        free(pkt);
+                        break;
+                      }
+                    } else if (inIdr && markerBit) {
+                      frameCaptured = true;
+                      free(pkt);
+                      break;
+                    }
+                  } else if (nalType == 28) {
+                    // FU-A Fragmentation Unit (RFC 6184)
+                    uint8_t fuHeader = rtpPayload[1];
+                    bool startBit = (fuHeader & 0x80) != 0;
+                    bool endBit   = (fuHeader & 0x40) != 0;
+                    uint8_t origNalType = fuHeader & 0x1F;
+
+                    if (origNalType == 5) {
+                      if (startBit) {
+                        inIdr = true;
+                        uint8_t reconstructedNal = (nalHeader & 0xE0) | origNalType;
+                        if (frameLen + 5 + (payloadLen - 2) < maxFrameSize) {
+                          appendStartCode();
+                          frameBuf[frameLen++] = reconstructedNal;
+                          memcpy(frameBuf + frameLen, rtpPayload + 2, payloadLen - 2);
+                          frameLen += (payloadLen - 2);
+                        } else {
+                          inIdr = false;
+                          frameLen = spsBaseline;
+                        }
+                      } else if (inIdr) {
+                        if (frameLen + (payloadLen - 2) < maxFrameSize) {
+                          memcpy(frameBuf + frameLen, rtpPayload + 2, payloadLen - 2);
+                          frameLen += (payloadLen - 2);
+                        } else {
+                          inIdr = false;
+                          frameLen = spsBaseline;
+                        }
+                      }
+                      if (inIdr && (endBit || markerBit)) {
+                        frameCaptured = true;
+                        free(pkt);
+                        break;
+                      }
+                    }
+                  } else if (nalType == 24) {
+                    // STAP-A Aggregation Packet
+                    int off = 1;
+                    while (off + 2 < payloadLen) {
+                      uint16_t nSize = ((uint16_t)rtpPayload[off] << 8) | rtpPayload[off + 1];
+                      off += 2;
+                      if (off + nSize <= payloadLen && nSize > 0) {
+                        uint8_t subType = rtpPayload[off] & 0x1F;
+                        if (subType == 7 || subType == 8 || subType == 5) {
+                          if (subType == 5) inIdr = true;
+                          if (frameLen + 4 + nSize < maxFrameSize) {
+                            appendStartCode();
+                            memcpy(frameBuf + frameLen, rtpPayload + off, nSize);
+                            frameLen += nSize;
+                          }
+                        }
+                      }
+                      off += nSize;
+                    }
+                    if (inIdr && markerBit) {
+                      frameCaptured = true;
+                      free(pkt);
+                      break;
+                    }
+                  }
+                }
+                free(pkt);
+              }
+
+              sendRtspCmd("TEARDOWN", baseUrl, cseq++, "Session: " + sessionId + "\r\n");
+              rtspClient.stop();
+
+              if (frameCaptured && frameLen > 0) {
+                Serial.printf("[RTSP] IDR Keyframe OK: %d bytes. Mengirim ke VPS...\n", (int)frameLen);
+                WiFiClientSecure secClient;
+                secClient.setInsecure();
+                HTTPClient vpsHttp;
+                vpsHttp.begin(secClient, VPS_UPLOAD_URL);
+                vpsHttp.addHeader("Content-Type", "application/octet-stream");
+                vpsHttp.addHeader("X-Frame-Format", "h264-raw");
+                vpsHttp.addHeader("X-Device-Key", DEVICE_API_KEY);
+                vpsHttp.addHeader("X-Student-Name", nama);
+                vpsHttp.addHeader("X-Attendance-Status", status);
+                vpsHttp.setTimeout(8000);
+                int resCode = vpsHttp.POST(frameBuf, frameLen);
+                Serial.printf("[VPS] Upload H264 HTTP %d: %s\n", resCode, vpsHttp.getString().c_str());
+                vpsHttp.end();
+              } else {
+                Serial.println("[RTSP] Gagal menangkap IDR Keyframe H.264.");
+              }
+            } else {
+              Serial.println("[RTSP] PLAY gagal");
+              rtspClient.stop();
+            }
+          } else {
+            Serial.println("[RTSP] SETUP gagal: " + setupRes);
+            rtspClient.stop();
+          }
+          free(frameBuf);
+        } else {
+          Serial.println("[RTSP] RAM tidak cukup untuk frameBuf");
+          rtspClient.stop();
         }
       } else {
-        Serial.printf("[CAM] %s -> HTTP %d\n", paths[i], code);
+        Serial.println("[RTSP] DESCRIBE gagal: " + descRes);
+        rtspClient.stop();
       }
-      camHttp.end();
-    }
-
-    if (jpgBuf && jpgLen > 0) {
-      String boundary = "----ESP32AbsensiBoundary";
-      String head = "--" + boundary + "\r\n"
-                    "Content-Disposition: form-data; name=\"nama\"\r\n\r\n" + nama + "\r\n"
-                    "--" + boundary + "\r\n"
-                    "Content-Disposition: form-data; name=\"status\"\r\n\r\n" + status + "\r\n"
-                    "--" + boundary + "\r\n"
-                    "Content-Disposition: form-data; name=\"image\"; filename=\"snap.jpg\"\r\n"
-                    "Content-Type: image/jpeg\r\n\r\n";
-      String tail = "\r\n--" + boundary + "--\r\n";
-
-      int totalLen = head.length() + jpgLen + tail.length();
-      uint8_t* postBody = (uint8_t*)malloc(totalLen);
-      if (postBody) {
-        memcpy(postBody, head.c_str(), head.length());
-        memcpy(postBody + head.length(), jpgBuf, jpgLen);
-        memcpy(postBody + head.length() + jpgLen, tail.c_str(), tail.length());
-
-        HTTPClient vpsHttp;
-        vpsHttp.begin(VPS_UPLOAD_URL);
-        vpsHttp.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
-        vpsHttp.addHeader("X-Device-Key", DEVICE_API_KEY);
-        vpsHttp.setTimeout(6000);
-        int resCode = vpsHttp.POST(postBody, totalLen);
-        Serial.printf("[VPS] Upload snapshot HTTP %d: %s\n", resCode, vpsHttp.getString().c_str());
-        vpsHttp.end();
-        free(postBody);
-      } else {
-        Serial.println("[VPS] RAM tidak cukup untuk postBody");
-      }
-      free(jpgBuf);
+    } else {
+      Serial.println("[RTSP] Gagal konek TCP ke kamera");
     }
   }
 
@@ -861,7 +1135,7 @@ void triggerSnapshotUpload(const String& nama, const String& status) {
   if (snapshotBusy) return;
   snapshotBusy = true;
   SnapshotTaskParam* param = new SnapshotTaskParam{nama, status};
-  xTaskCreatePinnedToCore(captureAndUploadTask, "CamUpload", 8192, param, 1, NULL, 0);
+  xTaskCreatePinnedToCore(captureAndUploadTask, "CamUpload", 10240, param, 1, NULL, 0);
 }
 
 // =====================================================

@@ -7,9 +7,10 @@ ENV ENABLE_MQTT=true
 
 WORKDIR /app
 
-# Install minimal build dependencies
+# Install minimal build dependencies + ffmpeg for H264 snapshot conversion
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies

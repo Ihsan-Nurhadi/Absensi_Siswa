@@ -432,7 +432,15 @@ def simulator_scan_view(request):
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def snapshot_upload_view(request):
-    """Receives JPEG snapshot from ESP32 CYD after a successful scan and attaches it to today's Absensi record."""
+    """
+    Receives snapshot from ESP32 CYD or RTSP bridge after a successful scan.
+    Supports:
+      1) Multipart JPEG upload (`image` file)
+      2) Raw H.264 Annex-B IDR frame (`X-Frame-Format: h264-raw` + raw body), converted to JPEG via ffmpeg.
+    """
+    import os
+    import subprocess
+    import tempfile
     from django.conf import settings
     from django.core.files.base import ContentFile
 
@@ -440,11 +448,25 @@ def snapshot_upload_view(request):
     if device_key != settings.DEVICE_API_KEY:
         return Response({'error': 'Unauthorized device key.'}, status=status.HTTP_401_UNAUTHORIZED)
 
-    nama = (request.data.get('nama') or '').strip()
-    epc_tag = (request.data.get('epc_tag') or request.data.get('uid') or '').strip()
-    image_file = request.FILES.get('image')
+    nama = (
+        request.headers.get('X-Student-Name')
+        or request.query_params.get('nama')
+        or request.data.get('nama')
+        or ''
+    ).strip()
+    epc_tag = (
+        request.headers.get('X-Student-Uid')
+        or request.query_params.get('epc_tag')
+        or request.data.get('epc_tag')
+        or request.data.get('uid')
+        or ''
+    ).strip()
 
-    if not image_file:
+    image_file = request.FILES.get('image')
+    frame_format = (request.headers.get('X-Frame-Format') or '').lower()
+    raw_h264 = request.body if (not image_file and frame_format == 'h264-raw' and request.body) else None
+
+    if not image_file and not raw_h264:
         return Response({'error': 'File image wajib dikirim.'}, status=status.HTTP_400_BAD_REQUEST)
 
     siswa = None
@@ -453,7 +475,6 @@ def snapshot_upload_view(request):
     if not siswa and nama:
         siswa = Siswa.objects.filter(nama__iexact=nama).first()
         if not siswa:
-            # Fallback if name was comma-stripped or truncated
             siswa = Siswa.objects.filter(nama__icontains=nama).first()
 
     if not siswa:
@@ -465,8 +486,36 @@ def snapshot_upload_view(request):
     if not absensi:
         return Response({'error': f'Belum ada record absensi hari ini untuk {siswa.nama}.'}, status=status.HTTP_404_NOT_FOUND)
 
+    jpeg_bytes = None
+    if image_file:
+        jpeg_bytes = image_file.read()
+    else:
+        tmp_h264 = None
+        tmp_jpg = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.h264', delete=False) as f_in:
+                f_in.write(raw_h264)
+                tmp_h264 = f_in.name
+            tmp_jpg = tmp_h264.replace('.h264', '.jpg')
+            res = subprocess.run(
+                ['ffmpeg', '-y', '-f', 'h264', '-i', tmp_h264, '-frames:v', '1', '-q:v', '3', '-loglevel', 'error', tmp_jpg],
+                timeout=10,
+                capture_output=True,
+                text=True,
+            )
+            if res.returncode == 0 and os.path.exists(tmp_jpg) and os.path.getsize(tmp_jpg) > 0:
+                with open(tmp_jpg, 'rb') as f_out:
+                    jpeg_bytes = f_out.read()
+            else:
+                return Response({'error': f'Gagal konversi H264 ke JPEG: {res.stderr}'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        finally:
+            if tmp_h264 and os.path.exists(tmp_h264):
+                os.remove(tmp_h264)
+            if tmp_jpg and os.path.exists(tmp_jpg):
+                os.remove(tmp_jpg)
+
     filename = f"{siswa.nis}_{today.strftime('%Y%m%d')}_{local_now.strftime('%H%M%S')}.jpg"
-    absensi.foto_bukti.save(filename, ContentFile(image_file.read()), save=True)
+    absensi.foto_bukti.save(filename, ContentFile(jpeg_bytes), save=True)
 
     return Response({
         'message': f'Foto bukti untuk {siswa.nama} berhasil disimpan.',
