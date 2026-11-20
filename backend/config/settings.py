@@ -84,6 +84,11 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
+
+DEVICE_API_KEY = os.environ.get('DEVICE_API_KEY', 'absensi-device-secret-2026')
+
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3004',
     'http://127.0.0.1:3004',

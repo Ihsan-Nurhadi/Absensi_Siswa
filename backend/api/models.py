@@ -98,6 +98,7 @@ class Absensi(models.Model):
     status = models.CharField(max_length=20, choices=StatusChoices.choices, default=StatusChoices.HADIR)
     sumber = models.CharField(max_length=20, choices=SumberChoices.choices, default=SumberChoices.SCAN_MQTT)
     catatan_koreksi = models.CharField(max_length=255, blank=True, null=True)
+    foto_bukti = models.FileField(upload_to='absensi_photos/%Y/%m/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

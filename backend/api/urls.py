@@ -19,6 +19,7 @@ from api.views import (
     download_report_pdf_view,
     download_student_pdf_direct_view,
     trigger_auto_report_view,
+    snapshot_upload_view,
 )
 
 router = DefaultRouter()
@@ -39,6 +40,7 @@ urlpatterns = [
     
     # Attendance Scan Simulator & Report Actions
     path('simulator/scan/', simulator_scan_view, name='simulator_scan'),
+    path('attendance/snapshot-upload/', snapshot_upload_view, name='snapshot_upload'),
     path('report/token/generate/', generate_report_token_view, name='generate_report_token'),
     path('public/report/<str:token>/', public_report_view, name='public_report'),
     path('report/pdf/<str:token>/', download_report_pdf_view, name='download_report_pdf'),

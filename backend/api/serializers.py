@@ -65,14 +65,20 @@ class AbsensiSerializer(serializers.ModelSerializer):
     siswa_nama = serializers.ReadOnlyField(source='siswa.nama')
     siswa_nis = serializers.ReadOnlyField(source='siswa.nis')
     kelas_nama = serializers.ReadOnlyField(source='siswa.kelas.nama')
+    foto_bukti_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Absensi
         fields = [
             'id', 'siswa', 'siswa_nama', 'siswa_nis', 'kelas_nama', 'tanggal', 
             'waktu_scan', 'waktu_masuk', 'waktu_pulang', 'lupa_absen_pulang',
-            'status', 'sumber', 'catatan_koreksi', 'created_at'
+            'status', 'sumber', 'catatan_koreksi', 'foto_bukti_url', 'created_at'
         ]
+
+    def get_foto_bukti_url(self, obj):
+        if obj.foto_bukti:
+            return obj.foto_bukti.url
+        return None
 
 class FeedbackSerializer(serializers.ModelSerializer):
     siswa_nama = serializers.ReadOnlyField(source='siswa.nama')

@@ -5,12 +5,13 @@ import StampBadge from '../../components/common/StampBadge';
 import TornCalendar from '../../components/common/TornCalendar';
 import PressButton from '../../components/common/PressButton';
 import PasswordConfirmModal from '../../components/common/PasswordConfirmModal';
-import { Calendar, Filter, Edit3 } from 'lucide-react';
+import { Calendar, Filter, Edit3, Camera, X } from 'lucide-react';
 
 export const AttendanceHistory = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
 
   // Bypass modal state
   const [bypassModal, setBypassModal] = useState({
@@ -105,13 +106,14 @@ export const AttendanceHistory = () => {
                 <th style={{ padding: '12px 14px' }}>Waktu Masuk</th>
                 <th style={{ padding: '12px 14px' }}>Waktu Pulang</th>
                 <th style={{ padding: '12px 14px' }}>Status</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center' }}>Foto</th>
                 <th style={{ padding: '12px 14px', textAlign: 'right' }}>Koreksi</th>
               </tr>
             </thead>
             <tbody>
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
+                  <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
                     Belum ada log absensi pada tanggal ini.
                   </td>
                 </tr>
@@ -128,6 +130,19 @@ export const AttendanceHistory = () => {
                     </td>
                     <td style={{ padding: '12px 14px' }}>
                       <StampBadge status={log.status} lupaPulang={log.lupa_absen_pulang} />
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                      {log.foto_bukti_url ? (
+                        <button
+                          onClick={() => setPreviewPhoto({ url: log.foto_bukti_url, nama: log.siswa_nama, waktu: log.waktu_masuk || log.waktu_scan })}
+                          title="Lihat Foto Bukti"
+                          style={{ padding: 0, border: '2px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden', cursor: 'pointer', background: 'transparent', width: '40px', height: '30px' }}
+                        >
+                          <img src={log.foto_bukti_url} alt={log.siswa_nama} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        </button>
+                      ) : (
+                        <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }}>-</span>
+                      )}
                     </td>
                     <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '3px', justifyContent: 'flex-end' }}>
@@ -155,6 +170,27 @@ export const AttendanceHistory = () => {
         loading={bypassModal.loading}
         error={bypassModal.error}
       />
+
+      {/* Modal Preview Foto Bukti Kamera */}
+      {previewPhoto && (
+        <div
+          onClick={() => setPreviewPhoto(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: '16px' }}
+        >
+          <SkeuoCard onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px', width: '100%', padding: '16px', background: '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800, color: '#0f172a' }}>
+                <Camera size={18} color="#0284c7" />
+                <span>Foto Bukti: {previewPhoto.nama} ({previewPhoto.waktu || '-'})</span>
+              </div>
+              <button onClick={() => setPreviewPhoto(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '6px', padding: '4px', cursor: 'pointer' }}>
+                <X size={18} color="#475569" />
+              </button>
+            </div>
+            <img src={previewPhoto.url} alt={previewPhoto.nama} style={{ width: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'block' }} />
+          </SkeuoCard>
+        </div>
+      )}
     </div>
   );
 };

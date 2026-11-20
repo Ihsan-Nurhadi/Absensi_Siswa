@@ -13,11 +13,15 @@ services:
       - DJANGO_ALLOWED_HOSTS=*
       - ENABLE_MQTT=true
       - SQLITE_DB_PATH=/app/data/db.sqlite3
+      - MEDIA_ROOT=/app/media
+      - DEVICE_API_KEY=absensi-device-secret-2026
     volumes:
       # Persistent storage for SQLite database so data is safe across rebuilds
       - backend_data:/app/data
       # Shared staticfiles directory for Django Admin CSS/JS
       - static_volume:/app/staticfiles
+      # Persistent storage for attendance snapshot photos
+      - media_volume:/app/media
     networks:
       - absensi_network
 
@@ -33,6 +37,7 @@ services:
     volumes:
       # Mount Django staticfiles so Nginx can serve admin styling directly
       - static_volume:/app/staticfiles:ro
+      - media_volume:/app/media:ro
     depends_on:
       - backend
     networks:
@@ -43,6 +48,8 @@ volumes:
     name: absensi_backend_data
   static_volume:
     name: absensi_static_volume
+  media_volume:
+    name: absensi_media_volume
 
 networks:
   absensi_network:

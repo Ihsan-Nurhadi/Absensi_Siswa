@@ -428,6 +428,52 @@ def simulator_scan_view(request):
         'absensi': AbsensiSerializer(absensi).data
     })
 
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def snapshot_upload_view(request):
+    """Receives JPEG snapshot from ESP32 CYD after a successful scan and attaches it to today's Absensi record."""
+    from django.conf import settings
+    from django.core.files.base import ContentFile
+
+    device_key = request.headers.get('X-Device-Key') or request.data.get('device_key')
+    if device_key != settings.DEVICE_API_KEY:
+        return Response({'error': 'Unauthorized device key.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    nama = (request.data.get('nama') or '').strip()
+    epc_tag = (request.data.get('epc_tag') or request.data.get('uid') or '').strip()
+    image_file = request.FILES.get('image')
+
+    if not image_file:
+        return Response({'error': 'File image wajib dikirim.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    siswa = None
+    if epc_tag:
+        siswa = Siswa.objects.filter(epc_tag__iexact=epc_tag).first()
+    if not siswa and nama:
+        siswa = Siswa.objects.filter(nama__iexact=nama).first()
+        if not siswa:
+            # Fallback if name was comma-stripped or truncated
+            siswa = Siswa.objects.filter(nama__icontains=nama).first()
+
+    if not siswa:
+        return Response({'error': f'Siswa tidak ditemukan ({nama or epc_tag}).'}, status=status.HTTP_404_NOT_FOUND)
+
+    local_now = timezone.localtime(timezone.now())
+    today = local_now.date()
+    absensi = Absensi.objects.filter(siswa=siswa, tanggal=today).first()
+    if not absensi:
+        return Response({'error': f'Belum ada record absensi hari ini untuk {siswa.nama}.'}, status=status.HTTP_404_NOT_FOUND)
+
+    filename = f"{siswa.nis}_{today.strftime('%Y%m%d')}_{local_now.strftime('%H%M%S')}.jpg"
+    absensi.foto_bukti.save(filename, ContentFile(image_file.read()), save=True)
+
+    return Response({
+        'message': f'Foto bukti untuk {siswa.nama} berhasil disimpan.',
+        'foto_bukti_url': absensi.foto_bukti.url,
+        'absensi_id': absensi.id,
+    })
+
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def teacher_performance_view(request):
