@@ -429,8 +429,19 @@ def simulator_scan_view(request):
     })
 
 
+from rest_framework.decorators import api_view, permission_classes, action, parser_classes
+from rest_framework.parsers import BaseParser, MultiPartParser, FormParser, JSONParser
+
+class OctetStreamParser(BaseParser):
+    media_type = 'application/octet-stream'
+
+    def parse(self, stream, media_type=None, parser_context=None):
+        return stream.read()
+
+
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@parser_classes([OctetStreamParser, MultiPartParser, FormParser, JSONParser])
 def snapshot_upload_view(request):
     """
     Receives snapshot from ESP32 CYD or RTSP bridge after a successful scan.
@@ -444,27 +455,29 @@ def snapshot_upload_view(request):
     from django.conf import settings
     from django.core.files.base import ContentFile
 
-    device_key = request.headers.get('X-Device-Key') or request.data.get('device_key')
+    data_dict = request.data if isinstance(request.data, dict) else {}
+
+    device_key = request.headers.get('X-Device-Key') or data_dict.get('device_key')
     if device_key != settings.DEVICE_API_KEY:
         return Response({'error': 'Unauthorized device key.'}, status=status.HTTP_401_UNAUTHORIZED)
 
     nama = (
         request.headers.get('X-Student-Name')
         or request.query_params.get('nama')
-        or request.data.get('nama')
+        or data_dict.get('nama')
         or ''
     ).strip()
     epc_tag = (
         request.headers.get('X-Student-Uid')
         or request.query_params.get('epc_tag')
-        or request.data.get('epc_tag')
-        or request.data.get('uid')
+        or data_dict.get('epc_tag')
+        or data_dict.get('uid')
         or ''
     ).strip()
 
     image_file = request.FILES.get('image')
     frame_format = (request.headers.get('X-Frame-Format') or '').lower()
-    raw_h264 = request.body if (not image_file and frame_format == 'h264-raw' and request.body) else None
+    raw_h264 = request.data if (not image_file and frame_format == 'h264-raw' and isinstance(request.data, (bytes, bytearray)) and request.data) else None
 
     if not image_file and not raw_h264:
         return Response({'error': 'File image wajib dikirim.'}, status=status.HTTP_400_BAD_REQUEST)
